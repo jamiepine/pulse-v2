@@ -68,6 +68,7 @@ export default class Pulse {
   getContext(collection) {
     return {
       ...this._private._global.contextRef,
+      ...this._private.collections[collection].methods,
       data: this._private.collections[collection].data.object,
       indexes: this._private.collections[collection].indexes.object,
       groups: this._private.collections[collection].groups,

@@ -1,4 +1,4 @@
-import { jobTypes } from "./helpers";
+import { jobTypes, log } from "./helpers";
 
 export default class Runtime {
   constructor(collections, global) {
@@ -14,7 +14,7 @@ export default class Runtime {
 
   ingest(type, collection, property, value) {
     const mutation = { type, collection, property, value };
-
+    log(`Ingesting`, mutation)
     this.ingestQueue.push(mutation);
     if (!this.running) {
       this.running = true;
@@ -24,9 +24,6 @@ export default class Runtime {
 
   findNextJob() {
     let next = this.ingestQueue.shift();
-
-    console.log(next);
-
     // const { type, collection, property, value } = next;
 
     // execute the next task in the queue
@@ -43,6 +40,15 @@ export default class Runtime {
 
     if (type === jobTypes.PUBLIC_DATA_MUTATION)
       this.commitPublicDataUpdate(collection, property, value);
+
+    if (type === jobTypes.INTERNAL_DATA_MUTATION)
+      this.commitInternalDataUpdate(collection, property, value);
+
+    if (type === jobTypes.GROUP_UPDATE)
+      this.commitIndexUpdate(collection, property, value);
+
+      if (type === jobTypes.FILTER_REGEN)
+      this.commitFilterOutput(collection, property, value);
 
     if (this.ingestQueue.length === 0) {
       this.finished();
@@ -95,6 +101,7 @@ export default class Runtime {
   }
 
   finished() {
+    log('finished')
     setTimeout(() => {
       if (this.ingestQueue.length === 0) {
         this.updateSubscribers();

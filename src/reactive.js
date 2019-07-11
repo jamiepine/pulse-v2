@@ -1,4 +1,5 @@
 import { protectedNames, jobTypes } from "./helpers";
+import { log } from "util";
 
 export default class Reactive {
   constructor(object = {}, dispatch, config = {}) {
@@ -21,6 +22,7 @@ export default class Reactive {
   proxify(object) {
     return new Proxy(object, {
       set: (target, key, value) => {
+        // log(key, value)
         if (this.allowPrivateWrite) {
           target[key] = value;
           return true;
@@ -28,7 +30,6 @@ export default class Reactive {
         if (protectedNames.includes(key)) return true;
 
         if (this.mutable.includes(key) && target.hasOwnProperty(key)) {
-          console.log("DISPATCHING", key, value);
           this.dispatch("mutation", {
             collection: this.collection,
             key,

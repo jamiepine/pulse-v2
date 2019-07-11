@@ -21,8 +21,6 @@ export default class Action {
 
       _this.executing = true;
 
-      console.log('hi',context);
-
       const result = action.apply(
         null,
         [context].concat(Array.prototype.slice.call(arguments))

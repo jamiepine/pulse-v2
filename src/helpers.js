@@ -11,7 +11,7 @@ export const jobTypes = {
   PUBLIC_DATA_MUTATION: "PUBLIC_DATA_MUTATION",
   INTERNAL_DATA_MUTATION: "INTERNAL_DATA_MUTATION",
   GROUP_UPDATE: "GROUP_UPDATE",
-  FILTER_REGEN: "filterRegen"
+  FILTER_REGEN: "FILTER_REGEN"
 };
 
 export function uuid() {
@@ -20,4 +20,8 @@ export function uuid() {
       .toString()
       .split(".")[1] + Date.now()
   );
+}
+
+export function log(value, payload) {
+  console.log(`Pulse - ${value}`, payload ? payload : ' ');
 }

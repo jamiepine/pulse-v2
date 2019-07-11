@@ -12,9 +12,16 @@ const pulse = new Pulse({
         currentChannel: 32
       },
       actions: {
-        test({channels}) {
+        test({ channels }) {
           channels.currentChannel = 55
+          channels.openChannel = false
           return true;
+        }
+      },
+      watch: {
+        openChannel() {
+          console.log('hi');
+          
         }
       }
     }
@@ -24,8 +31,7 @@ const pulse = new Pulse({
 pulse._private.collections.channels.data.privateWrite("openChannel", false);
 pulse._private.collections.channels.data.dispatch();
 
-pulse.channels.data.openChannel = "LMFAO";
+pulse.channels.openChannel = "LMFAO";
+pulse.channels.test()
 
-console.log(pulse.channels.actions.test());
-
-console.log(pulse);
+// console.log(pulse);

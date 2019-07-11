@@ -25,12 +25,17 @@ export default class Collection {
     this.dispatch = dispatch;
     groups = this.normalizeGroups(groups);
 
+    this.methods = {
+      collect: this.collect.bind(this)
+    }
+
     this.internalData = {};
 
     this.prepareNamespace({ data, groups, filters, actions });
     this.initReactive(data, groups);
 
     this.initActions(actions);
+    this.initWatchers(watch)
   }
 
   prepareNamespace(types) {
@@ -114,5 +119,27 @@ export default class Collection {
         );
       }
     }
+  }
+
+  initWatchers(watchers) {
+    this.watchers = {}
+    let watcherKeys = Object.keys(watchers)
+    for (let i = 0; i < watcherKeys.length; i++) {
+      const watcher = watchers[watcherKeys[i]];
+      this.watchers[watcherKeys[i]] = function () {
+        return watcher.apply(
+          null,
+          [this._global.getContext(this.name)].concat(Array.prototype.slice.call(arguments))
+        );
+      }
+    }
+    
+  }
+
+
+
+  // METHODS
+  collect() {
+    
   }
 }
