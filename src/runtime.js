@@ -1,35 +1,54 @@
+import { jobTypes } from "./helpers";
+
 export default class Runtime {
   constructor(collections, global) {
     this.collections = collections;
+    this.global = global;
     this.config = global.config;
     this.running = false;
-    this.ingestQueue = [];
 
     // workload memory
-    this.completed = [];
+    this.ingestQueue = [];
+    this.completedJobs = [];
   }
 
-  ingest(mutation) {
-    if (this.running) {
-      this.ingestQueue.push(mutation);
-      return;
+  ingest(type, collection, property, value) {
+    const mutation = { type, collection, property, value };
+
+    this.ingestQueue.push(mutation);
+    if (!this.running) {
+      this.running = true;
+      this.findNextJob();
     }
-    this.running = true;
   }
 
-  completedJob(type, collection, property, value) {
-    const types = [
-      "publicDataMutation",
-      "internalDataMutation",
-      "groupUpdate",
-      "filterRegen"
-    ];
-    this.completed.push({
-      type,
-      collection,
-      property,
-      value
-    });
+  findNextJob() {
+    let next = this.ingestQueue.shift();
+
+    console.log(next);
+
+    // const { type, collection, property, value } = next;
+
+    // execute the next task in the queue
+    this.performJob(next);
+    // is there a watcher to execute for the task we just executed?
+    // if (this.collections[collection].watchers[property]) {
+    //   this.collections[collection].watchers[property]();
+    // }
+    // find dependencies and add them to the queue
+  }
+
+  performJob(next) {
+    const { type, collection, property, value } = next;
+
+    if (type === jobTypes.PUBLIC_DATA_MUTATION)
+      this.commitPublicDataUpdate(collection, property, value);
+
+    if (this.ingestQueue.length === 0) {
+      this.finished();
+    } else {
+      this.findNextJob();
+    }
   }
 
   collectionHasRootProperty(collection, key) {
@@ -45,49 +64,57 @@ export default class Runtime {
   }
   commitPublicDataUpdate(collection, key, value) {
     this.commitUpdate(collection, "data", key, value);
-    this.completedJob("publicDataMutation", collection, key, value)
+    this.completedJob(jobTypes.PUBLIC_DATA_MUTATION, collection, key, value);
   }
   commitInternalDataUpdate(collection, key, value) {
-    this.completedJob("internalDataMutation", collection, key, value)
+    this.completedJob(jobTypes.INTERNAL_DATA_MUTATION, collection, key, value);
   }
   commitIndexUpdate(collection, key, value) {
     // Update Index
     this.collections[collection].indexes.privateWrite(key, value);
     // Build Group
-    let group = this.buildGroupFromIndex(collection, key, value)
+    let group = this.buildGroupFromIndex(collection, key, value);
     // Commit Update
-    this.collections[collection].groups[key] = group
+    this.collections[collection].groups[key] = group;
     if (this.collectionHasRootProperty(collection, key)) {
       this.collections[collection].public.privateWrite(key, value);
     }
-    this.completedJob("groupUpdate", collection, key, value)
+    this.completedJob(jobTypes.GROUP_UPDATE, collection, key, value);
   }
-  commitGroupOutput(collection, key, value) {}
-  commitFilterOutput(collection, key, value) {}
+  commitFilterOutput(collection, key, value) {
+    this.completedJob(jobTypes.FILTER_REGEN, collection, key, value);
+  }
 
-  findNextJob() {
-    let lastJob = this.completed[this.completed.length - 1];
-    lastJob;
-    // is there a watcher to execute?
-    // are there affected dependencies
+  completedJob(type, collection, property, value) {
+    this.completedJobs.push({
+      type,
+      collection,
+      property,
+      value
+    });
   }
 
   finished() {
     setTimeout(() => {
-      if (this.ingestQueue.length === 0) this.updateSubscribers();
+      if (this.ingestQueue.length === 0) {
+        this.updateSubscribers();
+        this.cleanup();
+      } else {
+        // loop more!
+        this.findNextJob();
+      }
     });
   }
 
   updateSubscribers() {
+    console.log("ALL JOBS COMPLETE");
+
     this.persistData();
   }
 
-  persistData() {
+  persistData() {}
 
-  }
+  cleanup() {}
 
-
-  buildGroupFromIndex(collection, key, value) {
-    
-  }
+  buildGroupFromIndex(collection, key, value) {}
 }

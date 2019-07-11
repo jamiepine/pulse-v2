@@ -1,4 +1,4 @@
-import { protectedNames } from "./helpers";
+import { protectedNames, jobTypes } from "./helpers";
 
 export default class Reactive {
   constructor(object = {}, dispatch, config = {}) {
@@ -11,10 +11,8 @@ export default class Reactive {
     this.properties = Object.keys(object);
     this.object = this.proxify(object);
     this.dependents = {
-      thing: [
-        ['collection', 'type', 'key']
-      ]
-    }
+      thing: [["collection", "key"]]
+    };
   }
 
   /**
@@ -48,4 +46,6 @@ export default class Reactive {
     this.object[property] = value;
     this.allowPrivateWrite = false;
   }
+
+  registerDep(property, collection, key) {}
 }

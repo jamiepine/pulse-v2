@@ -1,9 +1,10 @@
 import Reactive from "./reactive";
 import { protectedNames } from "./helpers";
+import Action from "./action";
 
 export default class Collection {
   constructor(
-    { name, dispatch, global },
+    { name, dispatch, _global },
     {
       config = {},
       data = {},
@@ -20,7 +21,7 @@ export default class Collection {
   ) {
     this.name = name;
     this.config = config;
-    this.global = global;
+    this._global = _global;
     this.dispatch = dispatch;
     groups = this.normalizeGroups(groups);
 
@@ -28,11 +29,19 @@ export default class Collection {
 
     this.prepareNamespace({ data, groups, filters, actions });
     this.initReactive(data, groups);
+
+    this.initActions(actions);
   }
 
   prepareNamespace(types) {
-    this.public = {};
-    if (this.global.config.bindPropertiesToCollectionRoot === false) {
+    this.public = {
+      actions: {},
+      filters: {},
+      groups: {},
+      data: {},
+      routes: {}
+    };
+    if (this._global.config.bindPropertiesToCollectionRoot === false) {
       return;
     }
     // let dataKeys = Object.keys(types.data);
@@ -61,7 +70,7 @@ export default class Collection {
     });
     this.public.data = this.data.object;
 
-    if (this.global.config.bindPropertiesToCollectionRoot !== false) {
+    if (this._global.config.bindPropertiesToCollectionRoot !== false) {
       for (let i = 0; i < dataKeys.length; i++) {
         const key = dataKeys[i];
         this.public[key] = this.data.object[key];
@@ -80,5 +89,30 @@ export default class Collection {
       mutable: [...dataKeys, ...groupKeys],
       collection: this.name
     });
+  }
+
+  initActions(actions) {
+    this.actions = {};
+    let actionKeys = Object.keys(actions);
+    for (let i = 0; i < actionKeys.length; i++) {
+      const action = actions[actionKeys[i]];
+      this.actions[actionKeys[i]] = new Action(
+        {
+          collection: this.name,
+          _global: this._global
+        },
+        action,
+        actionKeys[i]
+      );
+      this.public.object.actions[actionKeys[i]] = this.actions[
+        actionKeys[i]
+      ].exec;
+      if (this._global.config.bindPropertiesToCollectionRoot !== false) {
+        this.public.privateWrite(
+          actionKeys[i],
+          this.actions[actionKeys[i]].exec
+        );
+      }
+    }
   }
 }
