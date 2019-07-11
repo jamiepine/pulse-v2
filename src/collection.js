@@ -36,6 +36,7 @@ export default class Collection {
 
     this.initActions(actions);
     this.initWatchers(watch)
+    this.initFilters(filters)
   }
 
   prepareNamespace(types) {
@@ -119,9 +120,11 @@ export default class Collection {
         );
       }
     }
+    this.actions._keys = actionKeys
   }
 
   initWatchers(watchers) {
+    const _this = this
     this.watchers = {}
     let watcherKeys = Object.keys(watchers)
     for (let i = 0; i < watcherKeys.length; i++) {
@@ -129,11 +132,22 @@ export default class Collection {
       this.watchers[watcherKeys[i]] = function () {
         return watcher.apply(
           null,
-          [this._global.getContext(this.name)].concat(Array.prototype.slice.call(arguments))
+          [_this._global.getContext(_this.name)].concat(Array.prototype.slice.call(arguments))
         );
       }
     }
-    
+    this.watchers._keys = watcherKeys
+  }
+
+  initFilters(filters) {
+    this.filters = {}
+    const filterKeys = Object.keys(filters);
+    for (let i = 0; i < filterKeys.length; i++) {
+      const filterName = filterKeys[i];
+      // set the property to an empty array, until we've parsed the filter
+      this.filters[filterName] = [];
+    }
+    this.filters._keys = filterKeys
   }
 
 

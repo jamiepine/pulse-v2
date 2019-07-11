@@ -23,5 +23,5 @@ export function uuid() {
 }
 
 export function log(value, payload) {
-  console.log(`Pulse - ${value}`, payload ? payload : ' ');
+  console.log(`Pulse / ${value}`, payload ? payload : ' ');
 }

@@ -13,15 +13,19 @@ const pulse = new Pulse({
       },
       actions: {
         test({ channels }) {
-          channels.currentChannel = 55
-          channels.openChannel = false
+          channels.currentChannel = "FIRST";
+          channels.openChannel = "SECOND";
           return true;
         }
       },
       watch: {
-        openChannel() {
-          console.log('hi');
-          
+        openChannel({ channels }) {
+          channels.currentChannel = "THIRD";
+        }
+      },
+      filters: {
+        haha() {
+          return
         }
       }
     }
@@ -31,7 +35,7 @@ const pulse = new Pulse({
 pulse._private.collections.channels.data.privateWrite("openChannel", false);
 pulse._private.collections.channels.data.dispatch();
 
-pulse.channels.openChannel = "LMFAO";
-pulse.channels.test()
+// pulse.channels.openChannel = "LMFAO";
+pulse.channels.test();
 
-// console.log(pulse);
+console.log(pulse);

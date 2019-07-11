@@ -6,12 +6,15 @@ export default class Pulse {
   constructor({ collections, config = {} }) {
     this._private = {
       runtime: null,
+      history: {},
+      errors: {},
       _global: {
         config,
         currentAction: null,
         registerCurrentAction: this.registerCurrentAction.bind(this),
         unregisterCurrentAction: this.unregisterCurrentAction.bind(this),
         getContext: this.getContext.bind(this),
+        findDeps: this.findDeps.bind(this),
         contextRef: {}
       }
     };
@@ -75,6 +78,10 @@ export default class Pulse {
       filters: this._private.collections[collection].filters,
       routes: this._private.collections[collection].routes
     };
+  }
+
+  findDeps(type, collection, property, value) {
+    return []
   }
 
   registerCurrentAction(action) {
