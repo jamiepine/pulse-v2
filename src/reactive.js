@@ -113,6 +113,4 @@ export default class Reactive {
     this.object[property] = value;
     this.allowPrivateWrite = false;
   }
-
-  registerDep(property, collection, key) {}
 }
