@@ -1,10 +1,11 @@
 import Reactive from "./reactive";
 import { protectedNames } from "./helpers";
 import Action from "./action";
+import Filter from "./filter";
 
 export default class Collection {
   constructor(
-    { name, dispatch, _global },
+    { name, _global },
     {
       config = {},
       data = {},
@@ -21,13 +22,13 @@ export default class Collection {
   ) {
     this.name = name;
     this.config = config;
-    this._global = _global;
-    this.dispatch = dispatch;
+    this.global = _global;
+    this.dispatch = _global.dispatch;
     groups = this.normalizeGroups(groups);
 
     this.methods = {
       collect: this.collect.bind(this)
-    }
+    };
 
     this.internalData = {};
 
@@ -35,20 +36,30 @@ export default class Collection {
     this.initReactive(data, groups);
 
     this.initActions(actions);
-    this.initWatchers(watch)
-    this.initFilters(filters)
+    this.initWatchers(watch);
+    this.initFilters(filters);
   }
 
   prepareNamespace(types) {
+    const _filters = {};
+    Object.keys(types.filters).forEach(key => (_filters[key] = null));
+    const _groups = {};
+    Object.keys(types.groups).forEach(key => (_groups[key] = null));
+
     this.public = {
       actions: {},
-      filters: {},
-      groups: {},
+      filters: _filters,
+      groups: _groups,
       data: {},
       routes: {}
     };
-    if (this._global.config.bindPropertiesToCollectionRoot === false) {
-      return;
+    if (this.global.config.bindPropertiesToCollectionRoot !== false) {
+      this.public = {
+        ...this.public,
+        ..._filters,
+        ..._groups
+      };
+    } else {
     }
     // let dataKeys = Object.keys(types.data);
     // for (let i = 0; i < dataKeys.length; i++) {
@@ -69,21 +80,21 @@ export default class Collection {
     let dataKeys = Object.keys(data);
     let groupKeys = Object.keys(groups);
     // Make data reactive
-    this.data = new Reactive(data, this.dispatch, {
+    this.data = new Reactive(data, this.global, {
       mutable: dataKeys,
       type: "data",
       collection: this.name
     });
-    this.public.data = this.data.object;
 
-    if (this._global.config.bindPropertiesToCollectionRoot !== false) {
+    this.public.data = this.data.object;
+    if (this.global.config.bindPropertiesToCollectionRoot !== false) {
       for (let i = 0; i < dataKeys.length; i++) {
         const key = dataKeys[i];
         this.public[key] = this.data.object[key];
       }
     }
     // Make indexes reactive
-    this.indexes = new Reactive(groups, this.dispatch, {
+    this.indexes = new Reactive(groups, this.global, {
       mutable: groupKeys,
       type: "indexes",
       collection: this.name
@@ -91,7 +102,7 @@ export default class Collection {
     this.public.indexes = this.indexes.object;
 
     // Make entire public object Reactive
-    this.public = new Reactive(this.public, this.dispatch, {
+    this.public = new Reactive(this.public, this.global, {
       mutable: [...dataKeys, ...groupKeys],
       collection: this.name
     });
@@ -105,7 +116,7 @@ export default class Collection {
       this.actions[actionKeys[i]] = new Action(
         {
           collection: this.name,
-          _global: this._global
+          global: this.global
         },
         action,
         actionKeys[i]
@@ -113,47 +124,61 @@ export default class Collection {
       this.public.object.actions[actionKeys[i]] = this.actions[
         actionKeys[i]
       ].exec;
-      if (this._global.config.bindPropertiesToCollectionRoot !== false) {
+      if (this.global.config.bindPropertiesToCollectionRoot !== false) {
         this.public.privateWrite(
           actionKeys[i],
           this.actions[actionKeys[i]].exec
         );
       }
     }
-    this.actions._keys = actionKeys
+    this.actions._keys = actionKeys;
   }
 
   initWatchers(watchers) {
-    const _this = this
-    this.watchers = {}
-    let watcherKeys = Object.keys(watchers)
+    const _this = this;
+    this.watchers = {};
+    let watcherKeys = Object.keys(watchers);
     for (let i = 0; i < watcherKeys.length; i++) {
       const watcher = watchers[watcherKeys[i]];
-      this.watchers[watcherKeys[i]] = function () {
-        return watcher.apply(
+      this.watchers[watcherKeys[i]] = function() {
+        _this.global.runningWatcher = {
+          collection: _this.name,
+          property: watcherKeys[i]
+        };
+        const watcherOutput = watcher.apply(
           null,
-          [_this._global.getContext(_this.name)].concat(Array.prototype.slice.call(arguments))
+          [_this.global.getContext(_this.name)].concat(
+            Array.prototype.slice.call(arguments)
+          )
         );
-      }
+        _this.global.runningWatcher = false;
+        return watcherOutput;
+      };
     }
-    this.watchers._keys = watcherKeys
+    this.watchers._keys = watcherKeys;
   }
 
   initFilters(filters) {
-    this.filters = {}
+    this.filters = {};
     const filterKeys = Object.keys(filters);
     for (let i = 0; i < filterKeys.length; i++) {
       const filterName = filterKeys[i];
+      const filterFunction = filters[filterKeys[i]];
       // set the property to an empty array, until we've parsed the filter
-      this.filters[filterName] = [];
+      this.filters[filterName] = new Filter(
+        this.global,
+        this.name,
+        filterName,
+        filterFunction
+      );
+      this.public.object.filters[filterName] = [];
+      if (this.global.config.bindPropertiesToCollectionRoot !== false) {
+        this.public.object[filterName] = [];
+      }
     }
-    this.filters._keys = filterKeys
+    this.filters._keys = filterKeys;
   }
-
-
 
   // METHODS
-  collect() {
-    
-  }
+  collect() {}
 }

@@ -12,12 +12,12 @@ export default class Action {
   prepare(action, _global, undo) {
     const _this = this;
 
-    this.exec = function() {      
+    this.exec = function() {
       const context = _global.getContext(_this.collection);
       context.undo = function(error) {
         return undo(this.actionName, this.uuid, error);
       };
-      _global.registerCurrentAction(_this);
+      _global.runningAction = _this;
 
       _this.executing = true;
 
@@ -27,7 +27,7 @@ export default class Action {
       );
 
       _this.executing = false;
-      _global.unregisterCurrentAction();
+      _global.runningAction = false;
 
       return result;
     };

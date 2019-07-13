@@ -23,5 +23,37 @@ export function uuid() {
 }
 
 export function log(value, payload) {
-  console.log(`Pulse / ${value}`, payload ? payload : ' ');
+  console.log(`Pulse / ${value}`, payload ? payload : " ");
+}
+
+export const arrayFunctions = [
+  "push",
+  "pop",
+  "shift",
+  "unshift",
+  "splice",
+  "sort",
+  "reverse"
+];
+
+export function isWatchableObject(value) {
+  function isHTMLElement(obj) {
+    try {
+      return obj instanceof HTMLElement;
+    } catch (e) {
+      return (
+        typeof obj === "object" &&
+        obj.nodeType === 1 &&
+        typeof obj.style === "object" &&
+        typeof obj.ownerDocument === "object"
+      );
+    }
+  }
+  let type = typeof value;
+  return (
+    value != null &&
+    type == "object" &&
+    !isHTMLElement(value) &&
+    !Array.isArray(value)
+  );
 }
