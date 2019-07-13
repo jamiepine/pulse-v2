@@ -6,6 +6,7 @@ export default class Reactive {
     this.global = _global;
     this.mutable = config.mutable || [];
     this.collection = config.collection;
+    this.type = config.type || "root";
     this.dispatch = this.global.dispatch;
     this.allowPrivateWrite = false;
     this.properties = Object.keys(object);
@@ -16,16 +17,20 @@ export default class Reactive {
     const self = this;
     const objectKeys = Object.keys(object);
 
+    // Loop over all properties of the to-be reactive object
     for (let i = 0; i < objectKeys.length; i++) {
       const key = objectKeys[i];
       let value = object[key];
 
+      // If property is an array, make it reactive
       if (Array.isArray(value)) {
         value = this.reactiveArray(value, key);
+        // if property is an object, make it reactive also
       } else if (isWatchableObject(value) && !protectedNames.includes(key)) {
         value = this.deepReactiveObject(value, object.rootProperty || key);
       }
 
+      // Create an instance of the dependency tracker
       const dep = new Dep({ _global: this.global });
 
       Object.defineProperty(object, key, {
@@ -34,7 +39,7 @@ export default class Reactive {
           return value;
         },
         set: function pulseSetter(newValue) {
-          // if rootProperty is present & is mutable
+          // rootProperty indicates if the object is "deep".
           if (rootProperty && self.mutable.includes(rootProperty)) {
             // mutate locally
             value = newValue;
@@ -104,8 +109,24 @@ export default class Reactive {
         }
       });
     }
-
     return reactiveArray;
+  }
+
+  // alias mechanic for context object local properties
+  // will only work for data on the root of the collection
+  //
+  createAlias(properties = {}) {
+    let propertykeys = Object.keys(properties);
+    for (let i = 0; i < propertykeys.length; i++) {
+      const key = propertykeys[i];
+      let value = properties[propertykeys[i]];
+      Object.defineProperty(properties, key, {
+        get: function() {
+          return this.global.getContext(this.collection)[key];
+        },
+        set: function() {}
+      });
+    }
   }
 
   privateWrite(property, value) {
@@ -114,3 +135,6 @@ export default class Reactive {
     this.allowPrivateWrite = false;
   }
 }
+
+// look for filter output access to determine dependencies
+// remove filter categories from public object on default config

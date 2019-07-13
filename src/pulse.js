@@ -5,6 +5,7 @@ import { protectedNames, jobTypes, uuid, log } from "./helpers";
 export default class Pulse {
   constructor({ collections, config = {} }) {
     if (window) window._pulse = this;
+    this.uuid = uuid;
     this._private = {
       runtime: null,
       history: {},
@@ -15,12 +16,13 @@ export default class Pulse {
         runningAction: false,
         runningWatcher: false,
         runningFilter: false,
-        touching: false,
+        componentStore: {},
         dispatch: this.dispatch.bind(this),
         getContext: this.getContext.bind(this),
         contextRef: {}
       }
     };
+    this.mapData = this._mapData.bind(this);
     this.initCollections(collections);
     this.initRuntime();
     this.bindCollectionPublicData();
@@ -45,8 +47,6 @@ export default class Pulse {
           );
       }
     }
-
-    // performFilterOutput
   }
 
   initCollections(collections) {
@@ -95,15 +95,24 @@ export default class Pulse {
     }
   }
 
+  // data, groups and filters are tracked as dependeies of filters,
+  // so we have to access one single consistent source, not a copy.
+  // Dependencies are stored in the Dep class of the **original** object.
+  // We can't use "collection.data.thing" in one place and "collection.thing" in another.
+  // This creates a problem with the context object since you can also read data, groups etc directly.
+  // For those we're just mapping the entire public object so you can access { data } instead of { collectionName } from the context object.
   getContext(collection) {
+    let normal =
+      this._private.global.config.bindPropertiesToCollectionRoot !== false;
+    const c = this._private.collections[collection];
     return {
       ...this._private.global.contextRef,
-      ...this._private.collections[collection].methods,
-      data: this._private.collections[collection].data.object,
-      indexes: this._private.collections[collection].indexes.object,
-      groups: this._private.collections[collection].groups,
-      filters: this._private.collections[collection].filters,
-      routes: this._private.collections[collection].routes
+      ...c.methods,
+      data: normal ? c.public.object : c.public.object.data,
+      indexes: c.indexes.object,
+      groups: normal ? c.public.object : c.public.object.groups,
+      filters: normal ? c.public.object : c.public.object.filters,
+      routes: c.routes
     };
   }
 
@@ -137,56 +146,69 @@ export default class Pulse {
       }
     });
   }
-  mapData(properties, instanceToBind, config) {
-    instanceToBind = instanceToBind ? instanceToBind : this;
-    let returnData = {};
+  _mapData(properties, instance, _config = {}) {
+    const config = {
+      waitForMount: true,
+      ..._config
+    };
 
-    let uuid = instanceToBind.__pulseUniqueIdentifier;
+    const componentUUID = this.registerComponent(instance, config);
 
-    if (!uuid) {
-      // generate UUID
-      uuid = uuid();
-      // inject uuid into component instance
-      const componentContainer = {
-        instance: instanceToBind,
-        uuid,
-        ready: config && config.waitForMount ? false : true,
-        mappedData: properties,
-        config
-      };
-      instanceToBind.__pulseUniqueIdentifier = uuid;
-
-      // register component globally
-      pulse.global.componentStore[uuid] = componentContainer;
-    } else {
-      pulse.mount(instanceToBind);
-    }
-
-    if (properties)
-      pulse.normalizeMap(properties).forEach(({ key, val }) => {
+    if (typeof properties === "function") {
+    } else if (typeof properties === "object") {
+      this.normalizeMap(properties).forEach(({ key, val }) => {
+        let returnData = {};
         // parse address
         let collection = val.split("/")[0];
         let property = val.split("/")[1];
+        returnData[key] = this.subscribeToCollection(
+          componentUUID,
+          key,
+          collection,
+          property
+        );
 
-        // if collection not found return
-        if (!pulse.hasOwnProperty(collection)) return;
-
-        let subscribed = pulse._collections[collection]._subscribedToData;
-
-        let ref = {
-          componentUUID: uuid,
-          key
-        };
-
-        // register component locally on collection
-        if (!subscribed.hasOwnProperty(property)) {
-          subscribed[property] = [ref];
-        } else subscribed[property].push(ref);
-
-        // return data values to component
-        returnData[key] = pulse[collection][property];
+        return returnData;
       });
-    return returnData;
+    }
+  }
+  registerComponent(instance, config) {
+    let uuid = instance.__pulseUniqueIdentifier;
+    if (!uuid) {
+      // generate UUID
+      uuid = this.uuid();
+      // inject uuid into component instance
+      const componentContainer = {
+        instance: instance,
+        uuid,
+        ready: config.waitForMount ? false : true
+      };
+      instance.__pulseUniqueIdentifier = uuid;
+
+      this._private.global.componentStore[uuid] = componentContainer;
+    } else {
+      this.mount(instance);
+    }
+    return uuid;
+  }
+  subscribeComponentItentifierToCollection(uuid, key, collection, property) {
+    // if collection not found return
+    if (!this.hasOwnProperty(collection)) return;
+
+    let subscribed = this._collections[collection]._subscribedToData;
+
+    let ref = {
+      componentUUID: uuid,
+      key
+    };
+
+    // register component locally on collection
+    if (!subscribed.hasOwnProperty(property)) {
+      subscribed[property] = [ref];
+    } else subscribed[property].push(ref);
+
+    // return data values to component
+    return this[collection][property];
   }
   normalizeMap(map) {
     return Array.isArray(map)

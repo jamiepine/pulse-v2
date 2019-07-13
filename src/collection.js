@@ -47,10 +47,6 @@ export default class Collection {
     Object.keys(types.groups).forEach(key => (_groups[key] = null));
 
     this.public = {
-      actions: {},
-      filters: _filters,
-      groups: _groups,
-      data: {},
       routes: {}
     };
     if (this.global.config.bindPropertiesToCollectionRoot !== false) {
@@ -60,6 +56,13 @@ export default class Collection {
         ..._groups
       };
     } else {
+      this.public = {
+        ...this.public,
+        filters: _filters,
+        groups: _groups,
+        data: {},
+        actions: {}
+      };
     }
     // let dataKeys = Object.keys(types.data);
     // for (let i = 0; i < dataKeys.length; i++) {
@@ -86,12 +89,13 @@ export default class Collection {
       collection: this.name
     });
 
-    this.public.data = this.data.object;
     if (this.global.config.bindPropertiesToCollectionRoot !== false) {
       for (let i = 0; i < dataKeys.length; i++) {
         const key = dataKeys[i];
         this.public[key] = this.data.object[key];
       }
+    } else {
+      this.public.data = this.data.object;
     }
     // Make indexes reactive
     this.indexes = new Reactive(groups, this.global, {
@@ -121,14 +125,16 @@ export default class Collection {
         action,
         actionKeys[i]
       );
-      this.public.object.actions[actionKeys[i]] = this.actions[
-        actionKeys[i]
-      ].exec;
+
       if (this.global.config.bindPropertiesToCollectionRoot !== false) {
         this.public.privateWrite(
           actionKeys[i],
           this.actions[actionKeys[i]].exec
         );
+      } else {
+        this.public.object.actions[actionKeys[i]] = this.actions[
+          actionKeys[i]
+        ].exec;
       }
     }
     this.actions._keys = actionKeys;
@@ -171,9 +177,11 @@ export default class Collection {
         filterName,
         filterFunction
       );
-      this.public.object.filters[filterName] = [];
+
       if (this.global.config.bindPropertiesToCollectionRoot !== false) {
         this.public.object[filterName] = [];
+      } else {
+        this.public.object.filters[filterName] = [];
       }
     }
     this.filters._keys = filterKeys;

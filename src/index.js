@@ -33,9 +33,9 @@ const pulse = new Pulse({
         }
       },
       filters: {
-        filterOne({ channels }) {
+        filterOne({ data }) {
           console.log("Hi, I'm filter One!");
-          return channels.openChannel;
+          return data.openChannel;
         },
         filterTwo({ channels }) {
           console.log("Hi, I'm filter Two!");
@@ -46,9 +46,15 @@ const pulse = new Pulse({
   }
 });
 
+// pulse.mapData({}, ({ channels }) => {
+//   return {
+//     channel: channels.currentChannel
+//   };
+// });
+
 pulse.channels.openChannel = false;
 // pulse.channels.currentChannel = 'FUCK YYEYEYEYEEYYEY';
-pulse.channels.pls.push(1, 3);
+// pulse.channels.pls.push(1, 3);
 // pulse.channels.test();
 
 // pulse.channels.deepReactive.op.cool.luka = "YES!!";

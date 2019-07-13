@@ -58,11 +58,12 @@ export default class Runtime {
     if (dep && dep.dependents.size > 0) {
       log(`Queueing ${dep.dependents.size} dependents`);
       dep.dependents.forEach(filter => {
+        console.log("FWEFWEF", filter);
         this.ingest({
           type: jobTypes.FILTER_REGEN,
           collection: filter.collection,
           property: filter
-          // dep: payload.dep
+          // dep: filter.dep
         });
       });
     }
