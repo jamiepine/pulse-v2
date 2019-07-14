@@ -38,11 +38,14 @@ export default class Runtime {
       case jobTypes.INTERNAL_DATA_MUTATION:
         this.performInternalDataUpdate(collection, property, value);
         break;
-      case jobTypes.GROUP_UPDATE:
+      case jobTypes.INDEX_UPDATE:
         this.performIndexUpdate(collection, property, value);
         break;
       case jobTypes.FILTER_REGEN:
         this.performFilterOutput(collection, property);
+        break;
+      case jobTypes.GROUP_UPDATE:
+        this.performGroupRebuild(collection, property);
         break;
       default:
         break;
@@ -58,12 +61,14 @@ export default class Runtime {
     if (dep && dep.dependents.size > 0) {
       log(`Queueing ${dep.dependents.size} dependents`);
       dep.dependents.forEach(filter => {
-        console.log("FWEFWEF", filter);
+        // get dep from public filter output
+        const dep = this.collections[filter.collection].filterDeps[filter.name];
+
         this.ingest({
           type: jobTypes.FILTER_REGEN,
           collection: filter.collection,
-          property: filter
-          // dep: filter.dep
+          property: filter,
+          dep
         });
       });
     }
@@ -96,20 +101,30 @@ export default class Runtime {
 
   // Jobs runtime can perform
   performPublicDataUpdate(collection, key, value) {
-    this.commitUpdate(collection, "data", key, value);
+    this.writeToPublicObject(collection, "data", key, value);
     this.completedJob(jobTypes.PUBLIC_DATA_MUTATION, collection, key, value);
   }
   performInternalDataUpdate(collection, key, value) {
+    this.findIndexesToUpdate();
     this.completedJob(jobTypes.INTERNAL_DATA_MUTATION, collection, key, value);
   }
   performIndexUpdate(collection, key, value) {
     // Update Index
     this.collections[collection].indexes.privateWrite(key, value);
-    // Build Group
-    let group = this.buildGroupFromIndex(collection, key, value);
-    // Commit Update
-    this.commitUpdate(collection, "indexes", key, group);
-    this.completedJob(jobTypes.GROUP_UPDATE, collection, key, value);
+    this.completedJob(jobTypes.INDEX_UPDATE, collection, key, value);
+
+    // Group must also be updated
+    this.ingest({
+      type: jobTypes.GROUP_UPDATE,
+      collection: collection,
+      property: key
+      // FIND DEP
+    });
+  }
+  performGroupRebuild(collection, key) {
+    let group = this.buildGroupFromIndex(collection, key);
+    this.writeToPublicObject(collection, "group", key, group);
+    this.completedJob(jobTypes.GROUP_UPDATE, collection, key, group);
   }
   performFilterOutput(collection, keyOrClass) {
     const filter =
@@ -119,7 +134,7 @@ export default class Runtime {
 
     const filterOutput = filter.run();
     // Commit Update
-    this.commitUpdate(collection, "filters", filter.name, filterOutput);
+    this.writeToPublicObject(collection, "filters", filter.name, filterOutput);
     this.completedJob(
       jobTypes.FILTER_REGEN,
       collection,
@@ -129,20 +144,10 @@ export default class Runtime {
   }
 
   // Handlers for committing updates
-  collectionHasRootProperty(collection, key) {
-    if (this.config.bindPropertiesToCollectionRoot === false) return false;
-    return this.collections[collection].public.object.hasOwnProperty(key);
-  }
-  commitUpdate(collection, type, key, value) {
-    if (["filters", "groups"].includes(type))
-      this.collections[collection][type][key] = value;
-    else this.collections[collection][type].privateWrite(key, value);
-    this.updateRootProperty(collection, key, value);
-  }
-  updateRootProperty(collection, key, value) {
-    if (this.collectionHasRootProperty(collection, key)) {
-      this.collections[collection].public.privateWrite(key, value);
-    }
+  writeToPublicObject(collection, type, key, value) {
+    if (type === "indexes")
+      this.collections[collection][type].privateWrite(key, value);
+    else this.collections[collection].public.privateWrite(key, value);
   }
 
   completedJob(type, collection, property, value) {
@@ -174,5 +179,49 @@ export default class Runtime {
     });
   }
 
-  buildGroupFromIndex(collection, key, value) {}
+  buildGroupFromIndex(collection, key) {
+    const constructedArray = [];
+    let c = this.collections[collection];
+    let index = this.collections[collection].indexes.object[key];
+    for (let i = 0; i < index.length; i++) {
+      let id = index[i];
+      let data = c.internalData[id];
+      if (!data) continue;
+      constructedArray.push(data);
+      // data = this.injectDataByRelation(data)
+      // data = this.injectGroupByRelation(data)
+    }
+    return constructedArray;
+  }
+
+  findIndexesToUpdate(collection, keys) {
+    const foundIndexes = new Set();
+    const c = this.collections[collection];
+
+    if (!Array.isArray(keys)) keys = [keys];
+
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      const searchIndexes = this.searchIndexes(c, key);
+      searchIndexes.forEach(index => foundIndexes.add(index));
+    }
+
+    foundIndexes.forEach(index => {
+      this.ingest({
+        type: jobTypes.INDEX_UPDATE,
+        collection: c.name,
+        property: index
+        // FIND DEP
+      });
+    });
+  }
+
+  searchIndexes(c, key) {
+    let foundIndexes = [];
+    for (let i = 0; i < c.keys.indexes.length; i++) {
+      const indexName = c.keys.indexes[i];
+      if (c.indexes[indexName].includes(key)) foundIndexes.push(indexName);
+    }
+    return foundIndexes;
+  }
 }

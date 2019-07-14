@@ -16,6 +16,7 @@ export default class Pulse {
         runningAction: false,
         runningWatcher: false,
         runningFilter: false,
+        touching: false,
         componentStore: {},
         dispatch: this.dispatch.bind(this),
         getContext: this.getContext.bind(this),
@@ -37,14 +38,10 @@ export default class Pulse {
     for (let i = 0; i < collectionKeys.length; i++) {
       const collection = this._private.collections[collectionKeys[i]];
 
-      const filterKeys = collection.filters._keys;
+      const filterKeys = collection.keys.filters;
       for (let i = 0; i < filterKeys.length; i++) {
         const filterName = filterKeys[i];
-        if (filterName !== "_keys")
-          this._private.runtime.performFilterOutput(
-            collection.name,
-            filterName
-          );
+        this._private.runtime.performFilterOutput(collection.name, filterName);
       }
     }
   }
@@ -102,16 +99,14 @@ export default class Pulse {
   // This creates a problem with the context object since you can also read data, groups etc directly.
   // For those we're just mapping the entire public object so you can access { data } instead of { collectionName } from the context object.
   getContext(collection) {
-    let normal =
-      this._private.global.config.bindPropertiesToCollectionRoot !== false;
     const c = this._private.collections[collection];
     return {
       ...this._private.global.contextRef,
       ...c.methods,
-      data: normal ? c.public.object : c.public.object.data,
+      data: c.public.object,
       indexes: c.indexes.object,
-      groups: normal ? c.public.object : c.public.object.groups,
-      filters: normal ? c.public.object : c.public.object.filters,
+      groups: c.public.object,
+      filters: c.public.object,
       routes: c.routes
     };
   }

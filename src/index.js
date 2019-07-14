@@ -1,10 +1,15 @@
 import Pulse from "./pulse";
 
 const pulse = new Pulse({
-  config: {
-    bindPropertiesToCollectionRoot: true
-  },
+  config: {},
   collections: {
+    lol: {
+      filters: {
+        fuck({ channels }) {
+          return channels.filterOne;
+        }
+      }
+    },
     channels: {
       groups: ["myChannels"],
       data: {
@@ -39,7 +44,7 @@ const pulse = new Pulse({
         },
         filterTwo({ channels }) {
           console.log("Hi, I'm filter Two!");
-          return channels.currentChannel;
+          return channels.filterOne;
         }
       }
     }

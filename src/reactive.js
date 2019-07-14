@@ -4,6 +4,7 @@ import Dep from "./dep";
 export default class Reactive {
   constructor(object = {}, _global, config = {}) {
     this.global = _global;
+    this.config = config;
     this.mutable = config.mutable || [];
     this.collection = config.collection;
     this.type = config.type || "root";
@@ -32,6 +33,9 @@ export default class Reactive {
 
       // Create an instance of the dependency tracker
       const dep = new Dep({ _global: this.global });
+
+      // this is used to store the Dep class for the filter output
+      if (!rootProperty) this.aliasFilterOutputDep(key, dep);
 
       Object.defineProperty(object, key, {
         get: function pulseGetter() {
@@ -112,27 +116,16 @@ export default class Reactive {
     return reactiveArray;
   }
 
-  // alias mechanic for context object local properties
-  // will only work for data on the root of the collection
-  //
-  createAlias(properties = {}) {
-    let propertykeys = Object.keys(properties);
-    for (let i = 0; i < propertykeys.length; i++) {
-      const key = propertykeys[i];
-      let value = properties[propertykeys[i]];
-      Object.defineProperty(properties, key, {
-        get: function() {
-          return this.global.getContext(this.collection)[key];
-        },
-        set: function() {}
-      });
-    }
-  }
-
   privateWrite(property, value) {
     this.allowPrivateWrite = true;
     this.object[property] = value;
     this.allowPrivateWrite = false;
+  }
+
+  aliasFilterOutputDep(key, dep) {
+    if (this.config.keys && this.config.keys.filters.includes(key)) {
+      this.config.referenceFilterDeps(key, dep);
+    }
   }
 }
 

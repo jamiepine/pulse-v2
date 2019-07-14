@@ -25,7 +25,7 @@ export default class Collection {
     this.global = _global;
     this.dispatch = _global.dispatch;
     groups = this.normalizeGroups(groups);
-
+    this.filterDeps = {};
     this.methods = {
       collect: this.collect.bind(this)
     };
@@ -41,33 +41,19 @@ export default class Collection {
   }
 
   prepareNamespace(types) {
-    const _filters = {};
-    Object.keys(types.filters).forEach(key => (_filters[key] = null));
-    const _groups = {};
-    Object.keys(types.groups).forEach(key => (_groups[key] = null));
+    this.keys = {};
+    Object.keys(types).forEach(type => {
+      this.keys[type] = Object.keys(types[type]);
+    });
 
-    this.public = {
-      routes: {}
-    };
-    if (this.global.config.bindPropertiesToCollectionRoot !== false) {
-      this.public = {
-        ...this.public,
-        ..._filters,
-        ..._groups
-      };
-    } else {
-      this.public = {
-        ...this.public,
-        filters: _filters,
-        groups: _groups,
-        data: {},
-        actions: {}
-      };
-    }
-    // let dataKeys = Object.keys(types.data);
-    // for (let i = 0; i < dataKeys.length; i++) {
-    //   const dataName = dataKeys[i];
-    // }
+    this.public = Object.assign(
+      {},
+      // force defaults
+      { routes: {}, indexes: {} },
+      types.filters,
+      this.data,
+      this.groups
+    );
   }
 
   normalizeGroups(groupsAsArray) {
@@ -82,21 +68,12 @@ export default class Collection {
   initReactive(data, groups) {
     let dataKeys = Object.keys(data);
     let groupKeys = Object.keys(groups);
-    // Make data reactive
-    this.data = new Reactive(data, this.global, {
-      mutable: dataKeys,
-      type: "data",
-      collection: this.name
-    });
 
-    if (this.global.config.bindPropertiesToCollectionRoot !== false) {
-      for (let i = 0; i < dataKeys.length; i++) {
-        const key = dataKeys[i];
-        this.public[key] = this.data.object[key];
-      }
-    } else {
-      this.public.data = this.data.object;
+    for (let i = 0; i < dataKeys.length; i++) {
+      const key = dataKeys[i];
+      this.public[key] = data[key];
     }
+
     // Make indexes reactive
     this.indexes = new Reactive(groups, this.global, {
       mutable: groupKeys,
@@ -106,9 +83,11 @@ export default class Collection {
     this.public.indexes = this.indexes.object;
 
     // Make entire public object Reactive
-    this.public = new Reactive(this.public, this.global, {
+    this.public = new Reactive(Object.assign({}, this.public), this.global, {
       mutable: [...dataKeys, ...groupKeys],
-      collection: this.name
+      collection: this.name,
+      keys: this.keys,
+      referenceFilterDeps: this.referenceFilterDeps.bind(this)
     });
   }
 
@@ -166,10 +145,9 @@ export default class Collection {
 
   initFilters(filters) {
     this.filters = {};
-    const filterKeys = Object.keys(filters);
-    for (let i = 0; i < filterKeys.length; i++) {
-      const filterName = filterKeys[i];
-      const filterFunction = filters[filterKeys[i]];
+    for (let i = 0; i < this.keys.filters.length; i++) {
+      const filterName = this.keys.filters[i];
+      const filterFunction = filters[this.keys.filters[i]];
       // set the property to an empty array, until we've parsed the filter
       this.filters[filterName] = new Filter(
         this.global,
@@ -177,14 +155,14 @@ export default class Collection {
         filterName,
         filterFunction
       );
-
-      if (this.global.config.bindPropertiesToCollectionRoot !== false) {
-        this.public.object[filterName] = [];
-      } else {
-        this.public.object.filters[filterName] = [];
-      }
+      this.public.object[filterName] = [];
     }
-    this.filters._keys = filterKeys;
+  }
+
+  // this function is used to alias the filter output's Dep class on the collection instance
+  //
+  referenceFilterDeps(filter, dep) {
+    this.filterDeps[filter] = dep;
   }
 
   // METHODS
