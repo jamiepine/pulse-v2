@@ -21,6 +21,8 @@ export default class Reactive {
     // Loop over all properties of the to-be reactive object
     for (let i = 0; i < objectKeys.length; i++) {
       const key = objectKeys[i];
+      const rootProperty = object.rootProperty;
+      const currentProperty = key;
       let value = object[key];
 
       // If property is an array, make it reactive
@@ -28,11 +30,16 @@ export default class Reactive {
         value = this.reactiveArray(value, key);
         // if property is an object, make it reactive also
       } else if (isWatchableObject(value) && !protectedNames.includes(key)) {
-        value = this.deepReactiveObject(value, object.rootProperty || key);
+        // rootProperty should be the current key if first deep object
+        value = this.deepReactiveObject(
+          value,
+          rootProperty || key,
+          currentProperty
+        );
       }
 
       // Create an instance of the dependency tracker
-      const dep = new Dep({ _global: this.global });
+      const dep = new Dep(this.global, key, rootProperty, currentProperty);
 
       // this is used to store the Dep class for the filter output
       if (!rootProperty) this.aliasFilterOutputDep(key, dep);
@@ -77,9 +84,10 @@ export default class Reactive {
     return object;
   }
 
-  deepReactiveObject(value, rootProperty) {
+  deepReactiveObject(value, rootProperty, propertyOnObject) {
     let objectWithCustomPrototype = Object.create({
-      rootProperty
+      rootProperty,
+      propertyOnObject
     });
     // repopulate custom object with incoming values
     const keys = Object.keys(value);

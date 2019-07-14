@@ -1,11 +1,11 @@
 import Runtime from "./runtime";
 import Collection from "./collection";
+import SubController from "./subController";
 import { protectedNames, jobTypes, uuid, log } from "./helpers";
 
 export default class Pulse {
   constructor({ collections, config = {} }) {
     if (window) window._pulse = this;
-    this.uuid = uuid;
     this._private = {
       runtime: null,
       history: {},
@@ -16,14 +16,15 @@ export default class Pulse {
         runningAction: false,
         runningWatcher: false,
         runningFilter: false,
-        touching: false,
+        subs: new SubController(this.getContext.bind(this)),
         componentStore: {},
         dispatch: this.dispatch.bind(this),
         getContext: this.getContext.bind(this),
-        contextRef: {}
+        contextRef: {},
+        uuid
       }
     };
-    this.mapData = this._mapData.bind(this);
+    // this.mapData = this._mapData.bind(this);
     this.initCollections(collections);
     this.initRuntime();
     this.bindCollectionPublicData();
@@ -100,6 +101,7 @@ export default class Pulse {
   // For those we're just mapping the entire public object so you can access { data } instead of { collectionName } from the context object.
   getContext(collection) {
     const c = this._private.collections[collection];
+    if (!c) return this._private.global.contextRef;
     return {
       ...this._private.global.contextRef,
       ...c.methods,
@@ -141,7 +143,8 @@ export default class Pulse {
       }
     });
   }
-  _mapData(properties, instance, _config = {}) {
+
+  mapData(properties, instance = {}, _config = {}) {
     const config = {
       waitForMount: true,
       ..._config
@@ -149,7 +152,17 @@ export default class Pulse {
 
     const componentUUID = this.registerComponent(instance, config);
 
+    console.log(componentUUID);
+    console.log(typeof properties);
+
+    // new cool mapData method
     if (typeof properties === "function") {
+      return this._private.global.subs.subscribePropertiesToComponents(
+        properties,
+        componentUUID
+      );
+
+      // legacy support....
     } else if (typeof properties === "object") {
       this.normalizeMap(properties).forEach(({ key, val }) => {
         let returnData = {};
@@ -171,7 +184,7 @@ export default class Pulse {
     let uuid = instance.__pulseUniqueIdentifier;
     if (!uuid) {
       // generate UUID
-      uuid = this.uuid();
+      uuid = this._private.global.uuid();
       // inject uuid into component instance
       const componentContainer = {
         instance: instance,
@@ -186,21 +199,10 @@ export default class Pulse {
     }
     return uuid;
   }
+
   subscribeComponentItentifierToCollection(uuid, key, collection, property) {
     // if collection not found return
-    if (!this.hasOwnProperty(collection)) return;
-
-    let subscribed = this._collections[collection]._subscribedToData;
-
-    let ref = {
-      componentUUID: uuid,
-      key
-    };
-
-    // register component locally on collection
-    if (!subscribed.hasOwnProperty(property)) {
-      subscribed[property] = [ref];
-    } else subscribed[property].push(ref);
+    if (!this.collections.hasOwnProperty(collection)) return;
 
     // return data values to component
     return this[collection][property];

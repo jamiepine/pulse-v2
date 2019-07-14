@@ -159,6 +159,20 @@ export default class Collection {
     }
   }
 
+  buildGroupFromIndex(collection, key) {
+    const constructedArray = [];
+    let index = this.indexes.object[key];
+    for (let i = 0; i < index.length; i++) {
+      let id = index[i];
+      let data = this.internalData[id];
+      if (!data) continue;
+      constructedArray.push(data);
+      // data = this.injectDataByRelation(data)
+      // data = this.injectGroupByRelation(data)
+    }
+    return constructedArray;
+  }
+
   // this function is used to alias the filter output's Dep class on the collection instance
   //
   referenceFilterDeps(filter, dep) {

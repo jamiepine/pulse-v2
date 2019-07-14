@@ -39,11 +39,11 @@ const pulse = new Pulse({
       },
       filters: {
         filterOne({ data }) {
-          console.log("Hi, I'm filter One!");
+          // console.log("Hi, I'm filter One!");
           return data.openChannel;
         },
         filterTwo({ channels }) {
-          console.log("Hi, I'm filter Two!");
+          // console.log("Hi, I'm filter Two!");
           return channels.filterOne;
         }
       }
@@ -51,11 +51,20 @@ const pulse = new Pulse({
   }
 });
 
-// pulse.mapData({}, ({ channels }) => {
-//   return {
-//     channel: channels.currentChannel
-//   };
-// });
+pulse.mapData(({ channels }) => {
+  return {
+    channel: channels.currentChannel,
+    cool: channels.deepReactive.op.cool.luka,
+    ijwefoiewjf: channels.deepReactive.op.cool,
+    haha: channels.filterTwo
+  };
+});
+
+setTimeout(() => {
+  console.log(
+    pulse._private.collections.channels.filterDeps.filterTwo.subscribers[0]
+  );
+});
 
 pulse.channels.openChannel = false;
 // pulse.channels.currentChannel = 'FUCK YYEYEYEYEEYYEY';

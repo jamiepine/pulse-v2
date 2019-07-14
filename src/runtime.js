@@ -15,7 +15,7 @@ export default class Runtime {
   }
 
   ingest(mutation) {
-    if (this.global.initComplete) console.log("New job recieved, queuing...");
+    // if (this.global.initComplete) console.log("New job recieved, queuing...");
     this.ingestQueue.push(mutation);
     if (!this.running) {
       this.findNextJob();
@@ -53,13 +53,13 @@ export default class Runtime {
 
     // run watcher if it exists
     if (this.collections[collection].watchers[property]) {
-      log("Running WATCHER for", property);
+      // log("Running WATCHER for", property);
       this.collections[collection].watchers[property]();
     }
 
     // unpack dependent filters
     if (dep && dep.dependents.size > 0) {
-      log(`Queueing ${dep.dependents.size} dependents`);
+      // log(`Queueing ${dep.dependents.size} dependents`);
       dep.dependents.forEach(filter => {
         // get dep from public filter output
         const dep = this.collections[filter.collection].filterDeps[filter.name];
@@ -78,7 +78,7 @@ export default class Runtime {
 
   finished() {
     this.running = false;
-    console.log(this.completedJobs.length);
+    // console.log(this.completedJobs.length);
     if (this.completedJobs.length > 100) return;
 
     // If there's already more stuff in the queue, loop.
@@ -122,7 +122,7 @@ export default class Runtime {
     });
   }
   performGroupRebuild(collection, key) {
-    let group = this.buildGroupFromIndex(collection, key);
+    let group = this.collections[collection].buildGroupFromIndex(key);
     this.writeToPublicObject(collection, "group", key, group);
     this.completedJob(jobTypes.GROUP_UPDATE, collection, key, group);
   }
@@ -177,21 +177,6 @@ export default class Runtime {
     setTimeout(() => {
       this.updatingSubscribers = false;
     });
-  }
-
-  buildGroupFromIndex(collection, key) {
-    const constructedArray = [];
-    let c = this.collections[collection];
-    let index = this.collections[collection].indexes.object[key];
-    for (let i = 0; i < index.length; i++) {
-      let id = index[i];
-      let data = c.internalData[id];
-      if (!data) continue;
-      constructedArray.push(data);
-      // data = this.injectDataByRelation(data)
-      // data = this.injectGroupByRelation(data)
-    }
-    return constructedArray;
   }
 
   findIndexesToUpdate(collection, keys) {
