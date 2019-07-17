@@ -1,23 +1,22 @@
 import Runtime from "./runtime";
 import Collection from "./collection";
 import SubController from "./subController";
-import { protectedNames, jobTypes, uuid, log } from "./helpers";
+import { jobTypes, uuid, normalizeMap } from "./helpers";
+import { Private, Config, RootCollectionObject, JobType } from "./interfaces";
 
-export default class Pulse {
-  constructor({ collections, config = {} }) {
-    if (window) window._pulse = this;
+export default class Library {
+  _private: Private;
+  constructor(root: RootCollectionObject) {
     this._private = {
       runtime: null,
-      history: {},
-      errors: {},
       global: {
-        config,
+        config: root.config,
         initComplete: false,
         runningAction: false,
         runningWatcher: false,
         runningFilter: false,
+        collecting: false,
         subs: new SubController(this.getContext.bind(this)),
-        componentStore: {},
         dispatch: this.dispatch.bind(this),
         getContext: this.getContext.bind(this),
         contextRef: {},
@@ -25,7 +24,7 @@ export default class Pulse {
       }
     };
     // this.mapData = this._mapData.bind(this);
-    this.initCollections(collections);
+    this.initCollections(root.collections);
     this.initRuntime();
     this.bindCollectionPublicData();
     this.runAllFilters();
@@ -47,13 +46,14 @@ export default class Pulse {
     }
   }
 
-  initCollections(collections) {
+  initCollections(collections: object) {
     this._private.collections = {};
     let collectionKeys = Object.keys(collections);
     for (let i = 0; i < collectionKeys.length; i++) {
       const collection = collections[collectionKeys[i]];
       this._private.collections[collectionKeys[i]] = new Collection(
-        { _global: this._private.global, name: collectionKeys[i] },
+        collectionKeys[i],
+        this._private.global,
         collection
       );
     }
@@ -80,7 +80,7 @@ export default class Pulse {
     switch (type) {
       case "mutation":
         this._private.runtime.ingest({
-          type: jobTypes.PUBLIC_DATA_MUTATION,
+          type: JobType.PUBLIC_DATA_MUTATION,
           collection: payload.collection,
           property: payload.key,
           value: payload.value,
@@ -93,12 +93,6 @@ export default class Pulse {
     }
   }
 
-  // data, groups and filters are tracked as dependeies of filters,
-  // so we have to access one single consistent source, not a copy.
-  // Dependencies are stored in the Dep class of the **original** object.
-  // We can't use "collection.data.thing" in one place and "collection.thing" in another.
-  // This creates a problem with the context object since you can also read data, groups etc directly.
-  // For those we're just mapping the entire public object so you can access { data } instead of { collectionName } from the context object.
   getContext(collection) {
     const c = this._private.collections[collection];
     if (!c) return this._private.global.contextRef;
@@ -149,67 +143,31 @@ export default class Pulse {
       waitForMount: true,
       ..._config
     };
-
-    const componentUUID = this.registerComponent(instance, config);
-
-    console.log(componentUUID);
-    console.log(typeof properties);
-
+    const componentUUID = this._private.global.subs.registerComponent(
+      instance,
+      config
+    );
     // new cool mapData method
     if (typeof properties === "function") {
       return this._private.global.subs.subscribePropertiesToComponents(
         properties,
         componentUUID
       );
-
       // legacy support....
     } else if (typeof properties === "object") {
-      this.normalizeMap(properties).forEach(({ key, val }) => {
-        let returnData = {};
-        // parse address
+      let returnData = {};
+      normalizeMap(properties).forEach(({ key, val }) => {
         let collection = val.split("/")[0];
         let property = val.split("/")[1];
-        returnData[key] = this.subscribeToCollection(
-          componentUUID,
-          key,
-          collection,
-          property
+        let c = this._private.global.getContext()[collection];
+        returnData = this._private.global.subs.subscribePropertiesToComponents(
+          () => {
+            return { [key]: c[property] };
+          },
+          componentUUID
         );
-
-        return returnData;
       });
+      return returnData;
     }
-  }
-  registerComponent(instance, config) {
-    let uuid = instance.__pulseUniqueIdentifier;
-    if (!uuid) {
-      // generate UUID
-      uuid = this._private.global.uuid();
-      // inject uuid into component instance
-      const componentContainer = {
-        instance: instance,
-        uuid,
-        ready: config.waitForMount ? false : true
-      };
-      instance.__pulseUniqueIdentifier = uuid;
-
-      this._private.global.componentStore[uuid] = componentContainer;
-    } else {
-      this.mount(instance);
-    }
-    return uuid;
-  }
-
-  subscribeComponentItentifierToCollection(uuid, key, collection, property) {
-    // if collection not found return
-    if (!this.collections.hasOwnProperty(collection)) return;
-
-    // return data values to component
-    return this[collection][property];
-  }
-  normalizeMap(map) {
-    return Array.isArray(map)
-      ? map.map(key => ({ key, val: key }))
-      : Object.keys(map).map(key => ({ key, val: map[key] }));
   }
 }

@@ -1,13 +1,15 @@
-export default class Dep {
-  constructor(glob, key, rootProperty, propertyOnObject) {
-    this.global = glob;
-    this.rootProperty = rootProperty;
-    this.propertyOnObject = propertyOnObject;
-    this.name = key;
+import { Global } from "./interfaces";
 
-    this.dependents = new Set();
-    this.subscribers = [];
-  }
+export default class Dep {
+  public dependents: any = new Set();
+  public subscribers: Array<object> = [];
+
+  constructor(
+    private global: Global,
+    public name: string,
+    public rootProperty: string,
+    public propertyOnObject: string
+  ) {}
 
   register() {
     const subs = this.global.subs;
@@ -24,7 +26,6 @@ export default class Dep {
   }
 
   subscribeComponent() {
-    console.log(this);
     const subs = this.global.subs;
 
     if (this.rootProperty && subs.skimmingDeepReactive) {

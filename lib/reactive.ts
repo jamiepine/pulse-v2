@@ -1,20 +1,32 @@
 import { protectedNames, arrayFunctions, isWatchableObject } from "./helpers";
 import Dep from "./dep";
+import { Global, Config } from "./interfaces";
+
+interface Obj {
+  [key: string]: any;
+}
 
 export default class Reactive {
-  constructor(object = {}, _global, config = {}) {
-    this.global = _global;
-    this.config = config;
-    this.mutable = config.mutable || [];
-    this.collection = config.collection;
-    this.type = config.type || "root";
+  dispatch: any;
+  allowPrivateWrite: boolean = false;
+  touching: boolean = false;
+  properties: Array<string>;
+  object: Obj;
+  touched: null | Dep;
+  constructor(
+    object: Obj = {},
+    private global: Global,
+    private collection: string,
+    private mutable: Array<string>,
+    private type: string
+  ) {
     this.dispatch = this.global.dispatch;
-    this.allowPrivateWrite = false;
     this.properties = Object.keys(object);
+
     this.object = this.reactiveObject(object);
   }
 
-  reactiveObject(object, rootProperty) {
+  reactiveObject(object: Obj, rootProperty?: string) {
     const self = this;
     const objectKeys = Object.keys(object);
 
@@ -41,11 +53,12 @@ export default class Reactive {
       // Create an instance of the dependency tracker
       const dep = new Dep(this.global, key, rootProperty, currentProperty);
 
-      // this is used to store the Dep class for the filter output
-      if (!rootProperty) this.aliasFilterOutputDep(key, dep);
-
       Object.defineProperty(object, key, {
         get: function pulseGetter() {
+          if (self.touching) {
+            self.touched = dep;
+            return;
+          }
           dep.register();
           return value;
         },
@@ -130,10 +143,12 @@ export default class Reactive {
     this.allowPrivateWrite = false;
   }
 
-  aliasFilterOutputDep(key, dep) {
-    if (this.config.keys && this.config.keys.filters.includes(key)) {
-      this.config.referenceFilterDeps(key, dep);
-    }
+  getDep(property) {
+    this.touching = true;
+    const _ = this.object[property]; // eslint-disable-line no-unused-var
+    const dep = this.touched;
+    this.touching = false;
+    return dep;
   }
 }
 

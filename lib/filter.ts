@@ -1,12 +1,14 @@
-export default class Filter {
-  constructor(global, collection, filterName, filterFunction) {
-    this.global = global;
-    this.collection = collection;
-    this.name = filterName;
-    this.filterFunction = filterFunction;
-  }
+import { Global } from "./interfaces";
 
-  run() {
+export default class Filter {
+  constructor(
+    private global: Global,
+    public collection: string,
+    public name: string,
+    private filterFunction: (context: object) => any
+  ) {}
+
+  public run() {
     this.global.runningFilter = this;
 
     const output = this.filterFunction(this.global.getContext(this.collection));
