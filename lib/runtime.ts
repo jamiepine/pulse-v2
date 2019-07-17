@@ -3,7 +3,6 @@ import { JobType, Job, Global } from "./interfaces";
 
 export default class Runtime {
   public running: Boolean = false;
-  public performingJob: Boolean | Job = false;
   public updatingSubscribers: Boolean = false;
 
   private ingestQueue: Array<Job> = [];
@@ -18,7 +17,7 @@ export default class Runtime {
     this.config = global.config;
   }
 
-  ingest(job: Job) {
+  public ingest(job: Job): void {
     console.log(job);
     if (this.ingestQueue.length > 0) {
       // check if this job is already queued, if so defer to bottom of stack
@@ -39,7 +38,7 @@ export default class Runtime {
     }
   }
 
-  findNextJob() {
+  private findNextJob() {
     this.running = true;
     let next = this.ingestQueue.shift();
 
@@ -51,51 +50,46 @@ export default class Runtime {
     this.performJob(next);
   }
 
-  performJob({ type, collection, property, value, dep }) {
-    this.performingJob = { type, collection, property, value, dep };
-    switch (type) {
+  private performJob(job: Job): void {
+    switch (job.type) {
       case JobType.PUBLIC_DATA_MUTATION:
-        this.performPublicDataUpdate(collection, property, value);
+        this.performPublicDataUpdate(job);
         break;
       case JobType.INTERNAL_DATA_MUTATION:
-        this.performInternalDataUpdate(collection, property, value);
+        this.performInternalDataUpdate(job);
         break;
       case JobType.BULK_INTERNAL_DATA_MUTATION:
         // this.performInternalDataUpdate(collection, property, value);
         break;
       case JobType.INDEX_UPDATE:
-        this.performIndexUpdate(collection, property, value);
+        this.performIndexUpdate(job);
         break;
       case JobType.FILTER_REGEN:
-        this.performFilterOutput(collection, property);
+        this.performFilterOutput(job);
         break;
       case JobType.GROUP_UPDATE:
-        this.performGroupRebuild(collection, property);
+        this.performGroupRebuild(job);
         break;
       default:
         break;
     }
 
     // run watcher if it exists
-    if (this.collections[collection].watchers[property]) {
+    if (this.collections[job.collection].watchers[job.property]) {
       // log("Running WATCHER for", property);
-      this.collections[collection].watchers[property]();
+      this.collections[job.collection].watchers[job.property]();
     }
 
     // unpack dependent filters
-    if (dep && dep.dependents.size > 0) {
+    if (job.dep && job.dep.dependents.size > 0) {
       // log(`Queueing ${dep.dependents.size} dependents`);
-      dep.dependents.forEach(filter => {
+      job.dep.dependents.forEach(filter => {
         // get dep from public filter output
-        const dep = this.collections[filter.collection].public.getDep(
-          filter.name
-        );
-
         this.ingest({
           type: JobType.FILTER_REGEN,
           collection: filter.collection,
           property: filter,
-          dep
+          dep: this.collections[filter.collection].public.getDep(filter.name)
         });
       });
     }
@@ -103,9 +97,8 @@ export default class Runtime {
     this.finished();
   }
 
-  finished() {
+  private finished(): void {
     this.running = false;
-    this.performingJob = false;
     // console.log(this.completedJobs.length);
     if (this.completedJobs.length > 100) return;
 
@@ -128,61 +121,65 @@ export default class Runtime {
   }
 
   // Jobs runtime can perform
-  performPublicDataUpdate(collection, key, value) {
-    this.writeToPublicObject(collection, "data", key, value);
-    this.completedJob(JobType.PUBLIC_DATA_MUTATION, collection, key, value);
+  private performPublicDataUpdate(job: Job): void {
+    this.writeToPublicObject(job.collection, "data", job.property, job.value);
+    this.completedJob(job);
   }
-  performInternalDataUpdate(collection, key, value) {
-    const previousValue = this.overwriteInternalData(collection, key, value);
-    // only look for indexes if we're not collecting data
-    if (!this.global.collecting) this.findIndexesToUpdate(collection, key);
-    this.completedJob(
-      JobType.INTERNAL_DATA_MUTATION,
-      collection,
-      key,
-      value,
-      previousValue
+  private performInternalDataUpdate(job: Job): void {
+    job.previousValue = this.overwriteInternalData(
+      job.collection,
+      job.property,
+      job.value
     );
+    // only look for indexes if we're not collecting data
+    if (!this.global.collecting)
+      this.findIndexesToUpdate(job.collection, job.property);
+    this.completedJob(job);
   }
-  performIndexUpdate(collection, key, value) {
+  private performIndexUpdate(job: Job): void {
     // Update Index
-    this.collections[collection].indexes.privateWrite(key, value);
-    this.completedJob(JobType.INDEX_UPDATE, collection, key, value);
+    this.collections[job.collection].indexes.privateWrite(
+      job.property,
+      job.value
+    );
+    this.completedJob(job);
 
     // Group must also be updated
     this.ingest({
       type: JobType.GROUP_UPDATE,
-      collection: collection,
-      property: key,
-      dep: this.collections[collection].public.getDep(value)
+      collection: job.collection,
+      property: job.property,
+      dep: this.collections[job.collection].public.getDep(job.value)
     });
   }
-  performGroupRebuild(collection, key) {
-    let group = this.collections[collection].buildGroupFromIndex(key);
-    this.writeToPublicObject(collection, "group", key, group);
-    this.completedJob(JobType.GROUP_UPDATE, collection, key, group);
-  }
-  performFilterOutput(collection, keyOrClass) {
-    const filter =
-      typeof keyOrClass === "string"
-        ? this.collections[collection].filters[keyOrClass]
-        : keyOrClass;
-
-    this.collections[collection].removeRelationToInternalData(filter.name);
-
-    const filterOutput = filter.run();
-    // Commit Update
-    this.writeToPublicObject(collection, "filters", filter.name, filterOutput);
-    this.completedJob(
-      JobType.FILTER_REGEN,
-      collection,
-      filter.name,
-      filterOutput
+  private performGroupRebuild(job: Job): void {
+    job.value = this.collections[job.collection].buildGroupFromIndex(
+      job.property
     );
+    this.writeToPublicObject(job.collection, "group", job.property, job.value);
+    this.completedJob(job);
+  }
+  private performFilterOutput(job: Job): void {
+    const filter =
+      typeof job.property === "string"
+        ? this.collections[job.collection].filters[job.property]
+        : job.property;
+
+    this.collections[job.collection].removeRelationToInternalData(filter.name);
+
+    job.value = filter.run();
+    // Commit Update
+    this.writeToPublicObject(job.collection, "filters", filter.name, job.value);
+    this.completedJob(job);
   }
 
   // Handlers for committing updates
-  writeToPublicObject(collection, type, key, value) {
+  private writeToPublicObject(
+    collection: string,
+    type: string,
+    key: string,
+    value: any
+  ): void {
     if (type === "indexes") {
       if (!this.collections[collection][type].object.hasOwnProperty(key))
         return;
@@ -194,21 +191,12 @@ export default class Runtime {
     }
   }
 
-  completedJob(type, collection, property, value, previousValue) {
-    const job = {
-      type,
-      collection,
-      property,
-      value,
-      previousValue,
-      fromAction: this.global.runningAction,
-      dep: this.performingJob.dep
-    };
-    // log(`Job Completed`, job);
+  private completedJob(job: Job): void {
+    job.fromAction = this.global.runningAction;
     if (this.global.initComplete) this.completedJobs.push(job);
   }
 
-  compileComponentUpdates() {
+  private compileComponentUpdates(): void {
     if (!this.global.initComplete) return;
     this.updatingSubscribers = true;
     console.log("ALL JOBS COMPLETE", this.completedJobs);
@@ -237,15 +225,15 @@ export default class Runtime {
     console.log(componentsToUpdate);
   }
 
-  persistData() {}
+  private persistData(): void {}
 
-  cleanup() {
+  private cleanup(): void {
     setTimeout(() => {
       this.updatingSubscribers = false;
     });
   }
 
-  findIndexesToUpdate(collection, keys) {
+  private findIndexesToUpdate(collection, keys): void {
     const foundIndexes = new Set();
     const c = this.collections[collection];
 
@@ -267,7 +255,7 @@ export default class Runtime {
     });
   }
 
-  searchIndexes(c, key) {
+  private searchIndexes(c, key): Array<string> {
     let foundIndexes = [];
     for (let i = 0; i < c.keys.indexes.length; i++) {
       const indexName = c.keys.indexes[i];
@@ -276,7 +264,11 @@ export default class Runtime {
     return foundIndexes;
   }
 
-  overwriteInternalData(collection, primaryKey, newData) {
+  private overwriteInternalData(
+    collection: string,
+    primaryKey: string | number,
+    newData: any
+  ): object | boolean {
     const currentData = Object.assign(
       {},
       this.collections[collection].internalData[primaryKey]

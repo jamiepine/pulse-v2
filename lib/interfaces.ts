@@ -104,6 +104,7 @@ export interface Job {
   value?: string;
   previousValue?: string;
   dep?: Dep;
+  fromAction?: boolean | Action;
 }
 
 export interface ComponentContainer {

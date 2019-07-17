@@ -6,6 +6,8 @@ import { Private, Config, RootCollectionObject, JobType } from "./interfaces";
 
 export default class Library {
   _private: Private;
+  [key: string]: any;
+
   constructor(root: RootCollectionObject) {
     this._private = {
       runtime: null,
@@ -41,7 +43,11 @@ export default class Library {
       const filterKeys = collection.keys.filters;
       for (let i = 0; i < filterKeys.length; i++) {
         const filterName = filterKeys[i];
-        this._private.runtime.performFilterOutput(collection.name, filterName);
+        this._private.runtime.performFilterOutput({
+          collection: collection.name,
+          property: filterName,
+          type: JobType.FILTER_REGEN
+        });
       }
     }
   }
@@ -76,7 +82,7 @@ export default class Library {
     }
   }
 
-  dispatch(type, payload) {
+  dispatch(type: string, payload) {
     switch (type) {
       case "mutation":
         this._private.runtime.ingest({

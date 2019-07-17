@@ -2,10 +2,10 @@
   "name": "pulse-v2",
   "version": "1.0.0",
   "description": "Rewriting the Pulse Framework",
-  "main": "lib/index.ts",
+  "main": "index.html",
   "scripts": {
-    "start": "parcel lib/index.ts --open",
-    "build": "parcel build lib/index.ts"
+    "start": "parcel index.html --open",
+    "build": "parcel build index.html"
   },
   "dependencies": {},
   "devDependencies": {

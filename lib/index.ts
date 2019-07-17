@@ -5,9 +5,9 @@ const pulse = new Library({
   collections: {
     lol: {
       filters: {
-        // fuck({ channels }) {
-        //   return channels.filterOne;
-        // }
+        fuck({ channels }) {
+          return channels.filterOne;
+        }
       }
     },
     channels: {
@@ -97,6 +97,8 @@ pulse.channels.collect(sampleData, ["myChannels", "haha"]);
 console.log(sampleData);
 
 console.log(pulse);
+
+console.log("my name jeff");
 
 // pulse._private.collections.channels.data.privateWrite("openChannel", false);
 // pulse._private.collections.channels.data.dispatch();
