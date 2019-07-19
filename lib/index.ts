@@ -10,8 +10,13 @@ const pulse = new Library({
         }
       }
     },
+
     channels: {
       groups: ["myChannels"],
+      routes: {
+        getSomething: request =>
+          request.get("https://jsonplaceholder.typicode.com/posts")
+      },
       data: {
         openChannel: true,
         currentChannel: 32,
@@ -26,7 +31,10 @@ const pulse = new Library({
         }
       },
       actions: {
-        test({ channels }) {
+        test({ channels, routes }) {
+          routes.getSomething().then(res => {
+            console.log(res);
+          });
           channels.currentChannel = "FIRST";
           channels.openChannel = "SECOND";
           return true;
@@ -79,7 +87,7 @@ pulse.mapData(({ channels, lol }) => {
 pulse.channels.openChannel = false;
 // pulse.channels.currentChannel = 'FUCK YYEYEYEYEEYYEY';
 // pulse.channels.pls.push(1, 3);
-// pulse.channels.test();
+pulse.channels.test();
 
 // pulse.channels.deepReactive.op.cool.luka = "YES!!";
 
@@ -92,13 +100,17 @@ for (let i = 0; i < 10; i++) {
   });
 }
 
-pulse.channels.collect(sampleData, ["myChannels", "haha"]);
+pulse.channels.collect(sampleData, ["fuuuuuu", "haha"]);
 
-console.log(sampleData);
+// console.log(sampleData);
 
 console.log(pulse);
 
-console.log("my name jeff");
+console.log("HERE");
+
+// pulse.channels.routes.getSomething().then(res => {
+//   console.log(res);
+// });
 
 // pulse._private.collections.channels.data.privateWrite("openChannel", false);
 // pulse._private.collections.channels.data.dispatch();

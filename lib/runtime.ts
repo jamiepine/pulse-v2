@@ -70,6 +70,9 @@ export default class Runtime {
       case JobType.GROUP_UPDATE:
         this.performGroupRebuild(job);
         break;
+      case JobType.DELETE_INTERNAL_DATA:
+        this.performInternalDataDeletion(job);
+        break;
       default:
         break;
     }
@@ -78,6 +81,9 @@ export default class Runtime {
     if (this.collections[job.collection].watchers[job.property]) {
       // log("Running WATCHER for", property);
       this.collections[job.collection].watchers[job.property]();
+    }
+    if (this.collections[job.collection].externalWatchers[job.property]) {
+      this.collections[job.collection].externalWatchers[job.property]();
     }
 
     // unpack dependent filters
@@ -136,7 +142,35 @@ export default class Runtime {
       this.findIndexesToUpdate(job.collection, job.property);
     this.completedJob(job);
   }
+
+  private performInternalDataDeletion(job: Job): void {
+    const c = this.collections[job.collection];
+    // preserve previous value
+    job.previousValue = { ...c.internalData[job.property] };
+    // delete data
+    delete c.internalData[job.property];
+    // find indexes affected by this data deletion
+    const indexesToUpdate = this.searchIndexes(job.collection, job.property);
+
+    // for each found index, perform index update
+    for (let i = 0; i < indexesToUpdate.length; i++) {
+      const indexName = indexesToUpdate[i];
+      const newIndex = [...c.indexes.object[indexName]].filter(
+        id => id !== job.property
+      );
+      this.ingest({
+        type: JobType.INDEX_UPDATE,
+        collection: c.name,
+        property: indexName,
+        value: newIndex,
+        dep: this.collections[job.collection].public.getDep(job.property)
+      });
+    }
+    this.completedJob(job);
+  }
   private performIndexUpdate(job: Job): void {
+    // preserve old index
+    job.previousValue = this.collections[job.collection].indexes[job.property];
     // Update Index
     this.collections[job.collection].indexes.privateWrite(
       job.property,
@@ -144,12 +178,14 @@ export default class Runtime {
     );
     this.completedJob(job);
 
+    console.log(job.property);
+
     // Group must also be updated
     this.ingest({
       type: JobType.GROUP_UPDATE,
       collection: job.collection,
       property: job.property,
-      dep: this.collections[job.collection].public.getDep(job.value)
+      dep: this.collections[job.collection].public.getDep(job.property)
     });
   }
   private performGroupRebuild(job: Job): void {
@@ -164,8 +200,6 @@ export default class Runtime {
       typeof job.property === "string"
         ? this.collections[job.collection].filters[job.property]
         : job.property;
-
-    this.collections[job.collection].removeRelationToInternalData(filter.name);
 
     job.value = filter.run();
     // Commit Update
@@ -241,7 +275,7 @@ export default class Runtime {
 
     for (let i = 0; i < keys.length; i++) {
       const key = keys[i];
-      const searchIndexes = this.searchIndexes(c, key);
+      const searchIndexes = this.searchIndexes(collection, key);
       searchIndexes.forEach(index => foundIndexes.add(index));
     }
 
@@ -255,11 +289,17 @@ export default class Runtime {
     });
   }
 
-  private searchIndexes(c, key): Array<string> {
+  private searchIndexes(
+    collection: string,
+    primaryKey: string | number
+  ): Array<string> {
+    const c = this.collections[collection];
+
     let foundIndexes = [];
     for (let i = 0; i < c.keys.indexes.length; i++) {
       const indexName = c.keys.indexes[i];
-      if (c.indexes[indexName].includes(key)) foundIndexes.push(indexName);
+      if (c.indexes[indexName].includes(primaryKey))
+        foundIndexes.push(indexName);
     }
     return foundIndexes;
   }

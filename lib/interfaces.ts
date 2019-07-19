@@ -9,6 +9,18 @@ export interface ExpandableObject {
   [key: string]: any;
 }
 
+export interface RequestConfig {
+  baseURL: string;
+  requestIntercept: () => void;
+  responseIntercept: () => void;
+  mode: "cors" | "same-origin" | "no-cors" | "navigate";
+  credentials: "omit" | "same-origin";
+  include;
+  headers: ExpandableObject;
+  saveHistory: boolean;
+  timeout: number;
+}
+
 export interface Watcher {
   collection: string;
   property: string;
@@ -19,35 +31,6 @@ export interface RootConfig {
   frameworkConstructor?: any;
 }
 export interface CollectionConfig {}
-
-export interface RootCollectionObject {
-  config?: RootConfig;
-  request?: object;
-  collections?: object;
-
-  // basic
-  data?: object;
-  persist?: Array<object>;
-  groups?: Array<string>;
-  actions?: object;
-  filters?: object;
-  watch?: object;
-  routes?: object;
-  model?: object;
-  local?: object;
-}
-
-export interface Methods {
-  collect: void;
-  replaceIndex: void;
-}
-
-export interface Keys {
-  data?: Array<string>;
-  filters?: Array<string>;
-  actions?: Array<string>;
-  groups?: Array<string>;
-}
 
 export interface CollectionObject {
   config?: CollectionConfig;
@@ -62,6 +45,34 @@ export interface CollectionObject {
   local?: object;
   // private
   indexes?: object;
+}
+
+export interface RootCollectionObject extends CollectionObject {
+  config?: RootConfig;
+  request?: object;
+  collections?: object;
+}
+
+export interface Methods {
+  collect: void;
+  replaceIndex: void;
+  getGroup: void;
+  newGroup: void;
+  deleteGroup: void;
+  removeFromGroup: void;
+  update: void;
+  increment: void;
+  decrement: void;
+  delete: void;
+  purge: void;
+  watch: void;
+}
+
+export interface Keys {
+  data?: Array<string>;
+  filters?: Array<string>;
+  actions?: Array<string>;
+  groups?: Array<string>;
 }
 
 export interface Global {
@@ -79,12 +90,14 @@ export interface Global {
   getContext: any;
   uuid: any;
   ingest?: any;
+  request?: any;
 }
 
 export interface Private {
   global: Global;
   runtime: Runtime;
   collections?: { [key: string]: Collection };
+  events?: { [key: string]: Array<(payload?: any) => any> };
 }
 
 export const enum JobType {
@@ -94,15 +107,16 @@ export const enum JobType {
   FILTER_REGEN = "FILTER_REGEN",
   GROUP_UPDATE = "GROUP_UPDATE",
   DEEP_PUBLIC_DATA_MUTATION = "DEEP_PUBLIC_DATA_MUTATION",
-  BULK_INTERNAL_DATA_MUTATION = "BULK_INTERNAL_DATA_MUTATION"
+  BULK_INTERNAL_DATA_MUTATION = "BULK_INTERNAL_DATA_MUTATION",
+  DELETE_INTERNAL_DATA = "DELETE_INTERNAL_DATA"
 }
 
 export interface Job {
   type: JobType;
   collection: string;
   property: string;
-  value?: string;
-  previousValue?: string;
+  value?: any;
+  previousValue?: any;
   dep?: Dep;
   fromAction?: boolean | Action;
 }

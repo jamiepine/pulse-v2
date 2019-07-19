@@ -6,8 +6,9 @@
     "sourceMap": true,
     "allowJs": true,
     "lib": [
-      "es6",
-      "dom"
+      "es7",
+      "dom",
+      "es2017"
     ],
     "rootDir": "lib",
     "moduleResolution": "node"

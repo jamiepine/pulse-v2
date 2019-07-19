@@ -21,6 +21,7 @@ export default class Action {
 
     this.exec = function() {
       const context = global.getContext(_this.collection);
+      console.log("JEJEJEJEJEJE", context);
       context.undo = error => {
         return undo(this.actionName, this.uuid, error);
       };

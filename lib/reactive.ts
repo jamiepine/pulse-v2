@@ -1,24 +1,24 @@
 import { protectedNames, arrayFunctions, isWatchableObject } from "./helpers";
 import Dep from "./dep";
-import { Global, Config } from "./interfaces";
+import { Global } from "./interfaces";
 
 interface Obj {
   [key: string]: any;
 }
 
 export default class Reactive {
-  dispatch: any;
-  allowPrivateWrite: boolean = false;
-  touching: boolean = false;
-  properties: Array<string>;
-  object: Obj;
-  touched: null | Dep;
+  public properties: Array<string>;
+  public object: Obj;
+  private dispatch: any;
+  private allowPrivateWrite: boolean = false;
+  private touching: boolean = false;
+  private touched: null | Dep;
   constructor(
     object: Obj = {},
     private global: Global,
     private collection: string,
-    private mutable: Array<string>,
-    private type: string
+    public mutable: Array<string>,
+    public type: string
   ) {
     this.dispatch = this.global.dispatch;
     this.properties = Object.keys(object);
@@ -26,7 +26,7 @@ export default class Reactive {
     this.object = this.reactiveObject(object);
   }
 
-  reactiveObject(object: Obj, rootProperty?: string) {
+  reactiveObject(object: Obj, rootProperty?: string): object {
     const self = this;
     const objectKeys = Object.keys(object);
 
@@ -97,7 +97,7 @@ export default class Reactive {
     return object;
   }
 
-  deepReactiveObject(value, rootProperty, propertyOnObject) {
+  deepReactiveObject(value, rootProperty?: string, propertyOnObject?: string) {
     let objectWithCustomPrototype = Object.create({
       rootProperty,
       propertyOnObject
@@ -141,6 +141,14 @@ export default class Reactive {
     this.allowPrivateWrite = true;
     this.object[property] = value;
     this.allowPrivateWrite = false;
+  }
+
+  privateGetValue(property) {
+    return this.object[property];
+  }
+
+  exists(property: string): boolean {
+    return !!this.object.hasOwnProperty(property);
   }
 
   getDep(property) {

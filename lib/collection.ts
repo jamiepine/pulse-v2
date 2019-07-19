@@ -1,4 +1,4 @@
-import { jobTypes, assert, defineConfig } from "./helpers";
+import { assert, defineConfig, validateNumber, log } from "./helpers";
 import Reactive from "./reactive";
 import Action from "./action";
 import Filter from "./filter";
@@ -8,7 +8,8 @@ import {
   CollectionObject,
   CollectionConfig,
   Global,
-  JobType
+  JobType,
+  ExpandableObject
 } from "./interfaces";
 
 export default class Collection {
@@ -21,7 +22,8 @@ export default class Collection {
 
   actions: { [key: string]: Action } = {};
   filters: { [key: string]: Filter } = {};
-  watchers: object = {};
+  watchers: { [key: string]: any } = {};
+  externalWatchers: { [key: string]: any } = {};
 
   internalData: object = {};
   relatedToInternalData: object = {};
@@ -32,7 +34,7 @@ export default class Collection {
   dispatch: void;
   constructor(
     public name: string,
-    private global: Global,
+    protected global: Global,
     root: CollectionObject
   ) {
     this.config = root.config;
@@ -40,12 +42,23 @@ export default class Collection {
 
     this.methods = {
       collect: this.collect.bind(this),
-      replaceIndex: this.replaceIndex.bind(this)
+      replaceIndex: this.replaceIndex.bind(this),
+      getGroup: this.getGroup.bind(this),
+      newGroup: this.newGroup.bind(this),
+      deleteGroup: this.deleteGroup.bind(this),
+      removeFromGroup: this.removeFromGroup.bind(this),
+      update: this.update.bind(this),
+      increment: this.increment.bind(this),
+      decrement: this.decrement.bind(this),
+      delete: this.delete.bind(this),
+      purge: this.purge.bind(this),
+      watch: this.watch.bind(this)
     };
 
     this.prepareNamespace(root);
 
     this.initReactive(this.namespace.data, this.namespace.groups);
+    this.initRoutes(root.routes || {});
     this.initActions(this.namespace.actions);
     this.initWatchers(this.namespace.watch);
     this.initFilters(this.namespace.filters);
@@ -58,7 +71,6 @@ export default class Collection {
       groups: root.groups ? this.normalizeGroups(root.groups) : {},
       filters: root.filters || {},
       actions: root.actions || {}
-      // watch: root.watch || {}
     };
     // name
     Object.keys(types).forEach(type => {
@@ -128,7 +140,6 @@ export default class Collection {
 
   initWatchers(watchers: object = {}) {
     const _this = this;
-    this.watchers = {};
     let watcherKeys = Object.keys(watchers);
     for (let i = 0; i < watcherKeys.length; i++) {
       const watcher = watchers[watcherKeys[i]];
@@ -150,7 +161,7 @@ export default class Collection {
     this.watchers._keys = watcherKeys;
   }
 
-  initFilters(filters) {
+  initFilters(filters: object): void {
     this.filters = {};
     for (let i = 0; i < this.keys.filters.length; i++) {
       const filterName = this.keys.filters[i];
@@ -166,10 +177,29 @@ export default class Collection {
     }
   }
 
-  buildGroupFromIndex(key) {
+  initRoutes(routes: ExpandableObject) {
+    const self = this;
+    const keys = Object.keys(routes);
+    const routeWrapped = routeName => {
+      return function() {
+        let requestObject = Object.assign({}, self.global.request);
+        requestObject.context = self.global.getContext();
+        return routes[routeName].apply(
+          null,
+          [self.global.request].concat(Array.prototype.slice.call(arguments))
+        );
+      };
+    };
+    for (let i = 0; i < keys.length; i++) {
+      const routeName = keys[i];
+      this.public.object.routes[routeName] = routeWrapped(routeName);
+    }
+  }
+
+  buildGroupFromIndex(groupName: string): Array<number> {
     // console.log(collection, key)
     const constructedArray = [];
-    let index = this.indexes.object[key];
+    let index = this.indexes.object[groupName];
     for (let i = 0; i < index.length; i++) {
       let id = index[i];
       let data = this.internalData[id];
@@ -179,41 +209,6 @@ export default class Collection {
       // data = this.injectGroupByRelation(data)
     }
     return constructedArray;
-  }
-
-  createRelationToInternalData(primaryKey) {
-    const filter = this.global.runningFilter;
-    const name = (filter as Filter).name;
-    if (this.relatedToInternalData[name]) {
-      this.relatedToInternalData[name].push(filter);
-    } else {
-      this.relatedToInternalData[name] = [filter];
-    }
-  }
-  removeRelationToInternalData(filter) {
-    delete this.relatedToInternalData[filter];
-  }
-
-  ingestFiltersRelatedToData(primaryKey) {
-    const filters = this.relatedToInternalData[primaryKey];
-    for (let i = 0; i < filters.length; i++) {
-      const filter = filters[i];
-      this.global.runtime.ingest({
-        type: JobType.FILTER_REGEN,
-        collection: filter.collection,
-        property: filter,
-        dep: this.public.getDep(filter.name)
-      });
-    }
-  }
-
-  findById(id) {
-    this.createRelationToInternalData(id);
-    return this.internalData[id];
-  }
-
-  processInternalDataItem(primaryKey) {
-    this.ingestFiltersRelatedToData(primaryKey);
   }
 
   createGroups(group) {
@@ -228,7 +223,7 @@ export default class Collection {
   }
 
   // METHODS
-  collect(data, group, config) {
+  collect(data, group?: string, config?: ExpandableObject) {
     config = defineConfig(config, {
       append: true
     });
@@ -263,15 +258,15 @@ export default class Collection {
   }
 
   processDataItem(dataItem, groups, config) {
-    const primaryKey = this.findPrimaryKey(dataItem);
-    // if (!primaryKey) return;
-    const key = dataItem[this.primaryKey];
+    if (!this.primaryKey) this.findPrimaryKey(dataItem);
+
+    const key = dataItem[this.primaryKey as number | string];
 
     // validate against model
 
     // ingest the data
     this.global.ingest({
-      type: jobTypes.INTERNAL_DATA_MUTATION,
+      type: JobType.INTERNAL_DATA_MUTATION,
       collection: this.name,
       property: key,
       value: dataItem
@@ -281,8 +276,8 @@ export default class Collection {
     for (let i = 0; i < groups.length; i++) {
       const groupName = groups[i];
       const index = [...this.indexes.object[groupName]];
-      if (config.append) index.push(dataItem[this.primaryKey]);
-      else index.unshift(dataItem[this.primaryKey]);
+      if (config.append) index.push(key);
+      else index.unshift(key);
       this.indexes.privateWrite(groupName, index);
     }
     return true;
@@ -298,7 +293,6 @@ export default class Collection {
   }
 
   findPrimaryKey(dataItem) {
-    if (this.primaryKey) return true;
     if (dataItem.hasOwnProperty("id")) this.primaryKey = "id";
     else if (dataItem.hasOwnProperty("_id")) this.primaryKey = "_id";
     else if (dataItem.hasOwnProperty("key")) this.primaryKey = "key";
@@ -306,14 +300,220 @@ export default class Collection {
     else return assert(warn => warn.NO_PRIMARY_KEY);
   }
 
-  replaceIndex(indexName, newIndex) {
+  replaceIndex(indexName: string, newIndex: Array<string | number>) {
     if (!Array.isArray(newIndex) || typeof indexName !== "string")
       return assert(warn => warn.INVALID_PARAMETER, "replaceIndex");
     this.global.ingest({
-      type: jobTypes.INDEX_UPDATE,
+      type: JobType.INDEX_UPDATE,
       collection: this.name,
       property: indexName,
       value: newIndex
     });
   }
+
+  findById(id) {
+    if (!this.internalData.hasOwnProperty(id))
+      return assert(warn => warn.INTERNAL_DATA_NOT_FOUND, "findById");
+
+    if (this.global.runningFilter) {
+      let filter = this.global.runningFilter as Filter;
+      filter.addRelationToInternalData(this.name, id);
+    }
+    return this.internalData[id];
+  }
+
+  // action functions
+  undo() {}
+  throttle() {}
+
+  // group functions
+  move(
+    ids: number | Array<string | number>,
+    sourceIndexName: string,
+    destIndexName?: string,
+    method: "push" | "unshift" = "push"
+  ) {
+    // validation
+    if (!this.indexes.exists(sourceIndexName))
+      return assert(warn => warn.INDEX_NOT_FOUND, "move");
+
+    if (destIndexName && !this.indexes.exists(destIndexName))
+      return assert(warn => warn.INDEX_NOT_FOUND, "move");
+
+    if (!Array.isArray(ids)) ids = [ids];
+
+    let sourceIndex = this.indexes.privateGetValue(sourceIndexName);
+    for (let i = 0; i < ids.length; i++) sourceIndex.map(id => id !== ids[i]);
+
+    this.global.ingest({
+      type: JobType.INDEX_UPDATE,
+      collection: this.name,
+      property: sourceIndexName,
+      value: sourceIndex
+    });
+
+    if (destIndexName) {
+      let destIndex = this.indexes.privateGetValue(destIndexName);
+      for (let i = 0; i < ids.length; i++) destIndex[method](ids[i]);
+
+      this.global.ingest({
+        type: JobType.INDEX_UPDATE,
+        collection: this.name,
+        property: destIndexName,
+        value: destIndex
+      });
+    }
+  }
+
+  put(
+    ids: number | Array<string | number>,
+    destIndexName: string,
+    method: "push" | "unshift" = "push"
+  ) {
+    // validation
+    if (!this.indexes.exists(destIndexName))
+      return assert(warn => warn.INDEX_NOT_FOUND, "put");
+
+    if (!Array.isArray(ids)) ids = [ids];
+
+    let destIndex = this.indexes.privateGetValue(destIndexName);
+    for (let i = 0; i < ids.length; i++) destIndex[method](ids[i]);
+
+    this.global.ingest({
+      type: JobType.INDEX_UPDATE,
+      collection: this.name,
+      property: destIndexName,
+      value: destIndex
+    });
+  }
+
+  getGroup(property) {
+    if (!this.indexes.exists(property))
+      return assert(warn => warn.INDEX_NOT_FOUND, "group");
+
+    if (this.global.runningFilter) {
+      let filter = this.global.runningFilter as Filter;
+      filter.addRelationToGroup(this.name, property);
+    }
+    return this.buildGroupFromIndex(property);
+  }
+  newGroup(groupName: string, indexValue?: Array<string | number>) {
+    if (this.indexes.object.hasOwnProperty(groupName))
+      return assert(warn => warn.GROUP_ALREADY_EXISTS, "newGroup");
+
+    this.global.ingest({
+      type: JobType.INDEX_UPDATE,
+      collection: this.name,
+      property: groupName,
+      value: indexValue
+    });
+  }
+  deleteGroup(groupName: string) {
+    this.global.ingest({
+      type: JobType.INDEX_UPDATE,
+      collection: this.name,
+      property: groupName,
+      value: []
+    });
+  }
+  removeFromGroup(
+    groupName: string,
+    itemsToRemove: number | string | Array<number | string>
+  ) {
+    if (!this.indexes.exists(groupName))
+      return assert(warn => warn.INDEX_NOT_FOUND, "group");
+
+    if (!Array.isArray(itemsToRemove)) itemsToRemove = [itemsToRemove];
+
+    const index = this.indexes.privateGetValue(groupName);
+
+    const newIndex = index.filter(
+      id => !(itemsToRemove as Array<number | string>).includes(id)
+    );
+
+    this.global.ingest({
+      type: JobType.INDEX_UPDATE,
+      collection: this.name,
+      property: groupName,
+      value: newIndex
+    });
+  }
+
+  // internal data functions
+  update(primaryKey: string | number, newObject: { [key: string]: any }) {
+    if (!this.internalData.hasOwnProperty(primaryKey))
+      return assert(warn => warn.INTERNAL_DATA_NOT_FOUND, "update");
+
+    const newObjectKeys = Object.keys(newObject);
+    const currentData = Object.assign({}, this.internalData[primaryKey]);
+
+    for (let i = 0; i < newObjectKeys.length; i++) {
+      const key = newObjectKeys[i];
+      currentData[key] = newObject[key];
+    }
+    this.global.ingest({
+      type: JobType.INTERNAL_DATA_MUTATION,
+      collection: this.name,
+      property: primaryKey,
+      value: currentData
+    });
+  }
+  increment(
+    primaryKey: string | number,
+    property: string,
+    amount: number,
+    decrement?: boolean
+  ) {
+    if (!this.internalData.hasOwnProperty(primaryKey))
+      return assert(
+        warn => warn.INTERNAL_DATA_NOT_FOUND,
+        decrement ? "decrement" : "increment"
+      );
+
+    const currentData = Object.assign({}, this.internalData[primaryKey]);
+
+    if (!validateNumber(amount, currentData[primaryKey][property]))
+      return assert(
+        warn => warn.PROPERTY_NOT_A_NUMBER,
+        decrement ? "decrement" : "increment"
+      );
+
+    if (decrement) currentData[primaryKey][property] -= amount;
+    else currentData[primaryKey][property] += amount;
+
+    this.global.ingest({
+      type: JobType.INTERNAL_DATA_MUTATION,
+      collection: this.name,
+      property: primaryKey,
+      value: currentData
+    });
+  }
+  decrement(primaryKey: string | number, property: string, amount: number) {
+    this.increment(primaryKey, property, amount, true);
+  }
+
+  delete(primaryKeys: string | number | Array<string | number>) {
+    if (!Array.isArray(primaryKeys)) primaryKeys = [primaryKeys];
+    for (let i = 0; i < primaryKeys.length; i++) {
+      const primaryKey = primaryKeys[i];
+      this.global.ingest({
+        type: JobType.DELETE_INTERNAL_DATA,
+        collection: this.name,
+        property: primaryKey
+      });
+    }
+  }
+
+  // remove all dynamic indexes, empty all indexes, delete all internal data
+  purge() {}
+
+  // external functions
+  watch(property, callback) {
+    if (!this.externalWatchers[property])
+      this.externalWatchers[property] = [callback];
+    else this.externalWatchers[property].push(callback);
+  }
+
+  // deprecate
+  remove() {}
 }

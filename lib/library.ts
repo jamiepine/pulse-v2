@@ -1,8 +1,14 @@
 import Runtime from "./runtime";
 import Collection from "./collection";
 import SubController from "./subController";
-import { jobTypes, uuid, normalizeMap } from "./helpers";
-import { Private, Config, RootCollectionObject, JobType } from "./interfaces";
+import Request from "./collections/request";
+import { uuid, normalizeMap } from "./helpers";
+import {
+  Private,
+  RequestConfig,
+  RootCollectionObject,
+  JobType
+} from "./interfaces";
 
 export default class Library {
   _private: Private;
@@ -11,6 +17,7 @@ export default class Library {
   constructor(root: RootCollectionObject) {
     this._private = {
       runtime: null,
+      events: {},
       global: {
         config: root.config,
         initComplete: false,
@@ -52,7 +59,7 @@ export default class Library {
     }
   }
 
-  initCollections(collections: object) {
+  initCollections(collections: object, request: RequestConfig = {}) {
     this._private.collections = {};
     let collectionKeys = Object.keys(collections);
     for (let i = 0; i < collectionKeys.length; i++) {
@@ -63,6 +70,10 @@ export default class Library {
         collection
       );
     }
+    this._private.collections["request"] = new Request(
+      this._private.global,
+      request
+    );
   }
 
   initRuntime() {
@@ -109,7 +120,7 @@ export default class Library {
       indexes: c.indexes.object,
       groups: c.public.object,
       filters: c.public.object,
-      routes: c.routes
+      routes: c.public.object.routes
     };
   }
 
@@ -175,5 +186,18 @@ export default class Library {
       });
       return returnData;
     }
+  }
+
+  emit(name: string, payload: any): void {
+    if (this._private.events[name])
+      for (let i = 0; i < this._private.events[name].length; i++) {
+        const callback = this._private.events[name][i];
+        callback(payload);
+      }
+  }
+  on(name: string, callback: () => any): void {
+    if (!Array.isArray(this._private.events[name]))
+      this._private.events[name] = [callback];
+    else this._private.events[name].push(callback);
   }
 }

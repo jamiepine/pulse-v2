@@ -7,15 +7,6 @@ export const protectedNames = [
   "routes"
 ];
 
-export const jobTypes = {
-  PUBLIC_DATA_MUTATION: "PUBLIC_DATA_MUTATION",
-  INTERNAL_DATA_MUTATION: "INTERNAL_DATA_MUTATION",
-  INDEX_UPDATE: "INDEX_UPDATE",
-  GROUP_UPDATE: "GROUP_UPDATE",
-  FILTER_REGEN: "FILTER_REGEN",
-  DEEP_PUBLIC_DATA_MUTATION: "DEEP_PUBLIC_DATA_MUTATION"
-};
-
 export function defineConfig(config, defaults) {
   return { ...defaults, ...config };
 }
@@ -48,7 +39,10 @@ export const arrayFunctions = [
   "reverse"
 ];
 
-export function assert(func, funcName) {
+export function assert(
+  func: (warnings: { [key: string]: any }) => any,
+  funcName?: string
+) {
   function warn(message) {
     if (funcName) console.log(`Pulse / ${funcName} / ${message}`);
     else console.warn(`Pulse / ${message}`);
@@ -56,7 +50,10 @@ export function assert(func, funcName) {
   }
   const warnings = {
     NO_PRIMARY_KEY: () => warn("No primary key found!"),
-    INVALID_PARAMETER: () => warn("Invalid parameter supplied to function.")
+    INVALID_PARAMETER: () => warn("Invalid parameter supplied to function."),
+    INDEX_NOT_FOUND: () => warn("Index was not found on collection."),
+    INTERNAL_DATA_NOT_FOUND: () => warn("Data was not found on collection."),
+    PROPERTY_NOT_A_NUMBER: () => warn("Property is not a number!")
   };
   return func(warnings)();
 }
@@ -81,4 +78,11 @@ export function isWatchableObject(value) {
     !isHTMLElement(value) &&
     !Array.isArray(value)
   );
+}
+
+export function validateNumber(mutable, amount) {
+  if (typeof amount !== "number" || typeof mutable !== "number") {
+    return false;
+  }
+  return true;
 }
