@@ -12,6 +12,7 @@ const pulse = new Library({
     },
 
     channels: {
+      persist: ["openChannel"],
       groups: ["myChannels"],
       routes: {
         getSomething: request =>
@@ -84,10 +85,10 @@ pulse.mapData(({ channels, lol }) => {
 //   );
 // });
 
-pulse.channels.openChannel = false;
-// pulse.channels.currentChannel = 'FUCK YYEYEYEYEEYYEY';
-// pulse.channels.pls.push(1, 3);
-pulse.channels.test();
+// pulse.channels.openChannel = false;
+// // pulse.channels.currentChannel = 'FUCK YYEYEYEYEEYYEY';
+// // pulse.channels.pls.push(1, 3);
+// pulse.channels.test();
 
 // pulse.channels.deepReactive.op.cool.luka = "YES!!";
 
@@ -100,7 +101,7 @@ for (let i = 0; i < 10; i++) {
   });
 }
 
-pulse.channels.collect(sampleData, ["fuuuuuu", "haha"]);
+// pulse.channels.collect(sampleData, ["fuuuuuu", "haha"]);
 
 // console.log(sampleData);
 

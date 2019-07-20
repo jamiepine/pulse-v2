@@ -85,6 +85,7 @@ export interface Global {
   runningFilter: boolean | Filter;
   runningWatcher: boolean | Watcher;
   contextRef: ExpandableObject;
+  storage: any;
   // aliases
   dispatch: any;
   getContext: any;

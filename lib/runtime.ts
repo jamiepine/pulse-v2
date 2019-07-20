@@ -18,7 +18,6 @@ export default class Runtime {
   }
 
   public ingest(job: Job): void {
-    console.log(job);
     if (this.ingestQueue.length > 0) {
       // check if this job is already queued, if so defer to bottom of stack
       const alreadyInQueueAt = this.ingestQueue.findIndex(
@@ -105,7 +104,6 @@ export default class Runtime {
 
   private finished(): void {
     this.running = false;
-    // console.log(this.completedJobs.length);
     if (this.completedJobs.length > 100) return;
 
     // If there's already more stuff in the queue, loop.
@@ -178,8 +176,6 @@ export default class Runtime {
     );
     this.completedJob(job);
 
-    console.log(job.property);
-
     // Group must also be updated
     this.ingest({
       type: JobType.GROUP_UPDATE,
@@ -228,6 +224,7 @@ export default class Runtime {
   private completedJob(job: Job): void {
     job.fromAction = this.global.runningAction;
     if (this.global.initComplete) this.completedJobs.push(job);
+    this.persistData(job);
   }
 
   private compileComponentUpdates(): void {
@@ -257,9 +254,27 @@ export default class Runtime {
     }
 
     console.log(componentsToUpdate);
+    // this.updateSubscribers(componentsToUpdate)
   }
 
-  private persistData(): void {}
+  private updateSubscribers(componentsToUpdate) {
+    const componentKeys = Object.keys(componentsToUpdate);
+    for (let i = 0; i < componentKeys.length; i++) {
+      const componentID = componentKeys[i];
+      const data = componentsToUpdate[componentID];
+      const dataKeys = Object.keys(data);
+      dataKeys.forEach(property => {
+        const value = data[property];
+      });
+    }
+  }
+
+  private persistData(job: Job): void {
+    if (job.type === JobType.INTERNAL_DATA_MUTATION) return;
+    if (this.collections[job.collection].persist.includes(job.property)) {
+      this.global.storage.set(job.collection, job.property, job.value);
+    }
+  }
 
   private cleanup(): void {
     setTimeout(() => {

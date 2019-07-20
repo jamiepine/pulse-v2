@@ -49,7 +49,6 @@ export default class SubController {
   subscribePropertiesToComponents(properties, componentUUID) {
     // provisionally get keys of mapped data
     const provision = properties(this.getContext());
-    console.log(provision);
     const keys = Object.keys(provision);
 
     // mapData has a user defined local key, we need to include that in the subscription so we know what to update on the component later.

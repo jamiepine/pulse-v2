@@ -1,6 +1,7 @@
 import Runtime from "./runtime";
 import Collection from "./collection";
 import SubController from "./subController";
+import Storage from "./storage";
 import Request from "./collections/request";
 import { uuid, normalizeMap } from "./helpers";
 import {
@@ -26,6 +27,7 @@ export default class Library {
         runningFilter: false,
         collecting: false,
         subs: new SubController(this.getContext.bind(this)),
+        storage: null,
         dispatch: this.dispatch.bind(this),
         getContext: this.getContext.bind(this),
         contextRef: {},
@@ -33,6 +35,7 @@ export default class Library {
       }
     };
     // this.mapData = this._mapData.bind(this);
+    this._private.global.storage = new Storage();
     this.initCollections(root.collections);
     this.initRuntime();
     this.bindCollectionPublicData();

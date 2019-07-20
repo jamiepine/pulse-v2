@@ -24,6 +24,7 @@ export default class Collection {
   filters: { [key: string]: Filter } = {};
   watchers: { [key: string]: any } = {};
   externalWatchers: { [key: string]: any } = {};
+  persist: Array<string> = [];
 
   internalData: object = {};
   relatedToInternalData: object = {};
@@ -62,10 +63,11 @@ export default class Collection {
     this.initActions(this.namespace.actions);
     this.initWatchers(this.namespace.watch);
     this.initFilters(this.namespace.filters);
+
+    this.initPersist(root.persist);
   }
 
   prepareNamespace(root: CollectionObject) {
-    console.log(root);
     const types = {
       data: root.data || {},
       groups: root.groups ? this.normalizeGroups(root.groups) : {},
@@ -121,6 +123,20 @@ export default class Collection {
       [...dataKeys, ...groupKeys],
       "root"
     );
+  }
+
+  initPersist(persist: Array<string>): void {
+    if (!Array.isArray(persist)) return;
+    for (let i = 0; i < persist.length; i++) {
+      const dataName = persist[i];
+
+      // TODO: validate
+
+      this.persist.push(dataName);
+      let data = this.global.storage.get(this.name, dataName);
+      if (data === undefined || data === null) continue;
+      this.public.privateWrite(dataName, data);
+    }
   }
 
   initActions(actions: object = {}) {
