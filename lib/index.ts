@@ -4,9 +4,11 @@ const pulse = new Library({
   config: {},
   collections: {
     lol: {
+      // groups: ['haha'],
       model: {
         jeff: {
-          hasMany: 'channels'
+          hasMany: 'channels',
+          assignTo:'channels'
         }
       },
       filters: {
@@ -73,13 +75,15 @@ for (let i = 0; i < 10; i++) {
   sampleData.push({
     id: Math.random(),
     thing: true,
-    jeff: "hahahaha"
+    jeff: "myChannels"
   });
 }
 
 pulse.channels.collect(sampleData, 'myChannels')
-pulse.lol.collect(sampleData, 'ij')
+pulse.lol.collect(sampleData, 'haha')
 
 
 
 setTimeout(() => console.log(pulse))
+setTimeout(() => console.log(pulse._private.collections.channels))
+setTimeout(() => console.log(pulse._private.collections.lol))

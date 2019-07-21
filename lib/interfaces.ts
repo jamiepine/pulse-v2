@@ -10,15 +10,15 @@ export interface ExpandableObject {
 }
 
 export interface RequestConfig {
-  baseURL: string;
-  requestIntercept: () => void;
-  responseIntercept: () => void;
-  mode: "cors" | "same-origin" | "no-cors" | "navigate";
-  credentials: "omit" | "same-origin";
-  include;
-  headers: ExpandableObject;
-  saveHistory: boolean;
-  timeout: number;
+  baseURL?: string;
+  requestIntercept?: () => void;
+  responseIntercept?: () => void;
+  mode?: "cors" | "same-origin" | "no-cors" | "navigate";
+  credentials?: "omit" | "same-origin";
+  include?: any;
+  headers?: ExpandableObject;
+  saveHistory?: boolean;
+  timeout?: number;
 }
 
 export interface Watcher {
@@ -31,6 +31,8 @@ export interface RootConfig {
   frameworkConstructor?: any;
   waitForMount?: boolean;
   autoUnmount?: boolean;
+  enableBase: boolean;
+  enableRequest: boolean;
 }
 export interface CollectionConfig {}
 
@@ -56,18 +58,18 @@ export interface RootCollectionObject extends CollectionObject {
 }
 
 export interface Methods {
-  collect: void;
-  replaceIndex: void;
-  getGroup: void;
-  newGroup: void;
-  deleteGroup: void;
-  removeFromGroup: void;
-  update: void;
-  increment: void;
-  decrement: void;
-  delete: void;
-  purge: void;
-  watch: void;
+  collect?: void;
+  replaceIndex?: void;
+  getGroup?: void;
+  newGroup?: void;
+  deleteGroup?: void;
+  removeFromGroup?: void;
+  update?: void;
+  increment?: void;
+  decrement?: void;
+  delete?: void;
+  purge?: void;
+  watch?: void;
 }
 
 export interface Keys {

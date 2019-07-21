@@ -50,53 +50,50 @@ export default class Collection {
     this.config = root.config;
     this.dispatch = this.global.dispatch;
 
-    collectionFunctions.map(
-      func => (this.methods[func] = this[func].bind(this))
-    );
+    root = this.prepareNamespace(root);
 
-    this.prepareNamespace(root);
-
-    this.initReactive(this.namespace.data, this.namespace.groups);
-    this.initRoutes(root.routes || {});
-    this.initActions(this.namespace.actions);
-    this.initWatchers(this.namespace.watch);
-    this.initFilters(this.namespace.filters);
+    this.initReactive(root.data, root.groups);
+    this.initRoutes(root.routes);
+    this.initActions(root.actions);
+    this.initWatchers(root.watch);
+    this.initFilters(root.filters);
 
     this.initModel(root.model);
     this.initPersist(root.persist);
   }
 
   prepareNamespace(root: CollectionObject) {
-    // prepare defaults
-    const types = {
-      data: root.data || {},
-      filters: root.filters || {},
-      actions: root.actions || {}
-    };
-    // cache the keys for all namespace object types
-    Object.keys(types).forEach(type => {
-      this.keys[type] = Object.keys(types[type]);
-    });
-    this.keys["indexes"] = root.groups || [];
-
-    // assign namespace
-    this.namespace = Object.assign(
-      Object.create({ ...this.methods }), // bind methods to prototype
-      { routes: {}, indexes: {} },
-      types
+    // map collection methods
+    collectionFunctions.map(
+      func => (this.methods[func] = this[func].bind(this))
     );
 
-    let groups = root.groups ? this.normalizeGroups(root.groups) : {};
+    // for each type set default and register keys
+    ["data", "actions", "filters", "indexes", "routes", "watch"].forEach(
+      type => {
+        if (type !== "indexes" && !root[type]) root[type] = {};
+        this.keys[type] =
+          type === "indexes" ? root[type] || [] : Object.keys(root[type]);
+      }
+    );
 
-    let mutableKeys = [...this.keys.data, ...this.keys.indexes];
-    for (let i = 0; i < mutableKeys.length; i++) {
-      const key = mutableKeys[i];
-      this.namespace[key] = types.data[key] || groups[key];
-    }
+    // assign namespace, this is used by initReactive
+    this.namespace = Object.assign(
+      Object.create({ ...this.methods }), // bind methods to prototype
+      {
+        routes: {},
+        indexes: {},
+        actions: root.actions,
+        ...root.filters,
+        ...root.data,
+        ...this.normalizeGroups(root.groups)
+      }
+    );
+    return root;
   }
 
   // groups are defined by the user as an array of strings, this converts them into object/keys
-  normalizeGroups(groupsAsArray: any) {
+  normalizeGroups(groupsAsArray: any = []) {
     const groups: object = {};
     for (let i = 0; i < groupsAsArray.length; i++) {
       const groupName = groupsAsArray[i];
@@ -156,22 +153,16 @@ export default class Collection {
   }
 
   initWatchers(watchers: object = {}) {
-    const _this = this;
     let watcherKeys = Object.keys(watchers);
     for (let i = 0; i < watcherKeys.length; i++) {
       const watcher = watchers[watcherKeys[i]];
-      this.watchers[watcherKeys[i]] = function() {
-        _this.global.runningWatcher = {
-          collection: _this.name,
+      this.watchers[watcherKeys[i]] = () => {
+        this.global.runningWatcher = {
+          collection: this.name,
           property: watcherKeys[i]
         };
-        const watcherOutput = watcher.apply(
-          null,
-          [_this.global.getContext(_this.name)].concat(
-            Array.prototype.slice.call(arguments)
-          )
-        );
-        _this.global.runningWatcher = false;
+        const watcherOutput = watcher(this.global.getContext(this.name));
+        this.global.runningWatcher = false;
         return watcherOutput;
       };
     }

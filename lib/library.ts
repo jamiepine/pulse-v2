@@ -3,6 +3,7 @@ import Collection from "./collection";
 import SubController from "./subController";
 import Storage from "./storage";
 import Request from "./collections/request";
+import Base from "./collections/base";
 import { uuid, normalizeMap } from "./helpers";
 import {
   Private,
@@ -37,7 +38,7 @@ export default class Library {
     };
     // this.mapData = this._mapData.bind(this);
     this._private.global.storage = new Storage();
-    this.initCollections(root.collections);
+    this.initCollections(root);
     this.initRuntime();
     this.bindCollectionPublicData();
     this.runAllFilters();
@@ -62,21 +63,24 @@ export default class Library {
     }
   }
 
-  initCollections(collections: object, request: RequestConfig = {}) {
+  initCollections(root: RootCollectionObject, request: RequestConfig = {}) {
     this._private.collections = {};
-    let collectionKeys = Object.keys(collections);
+    let collectionKeys = Object.keys(root.collections);
     for (let i = 0; i < collectionKeys.length; i++) {
-      const collection = collections[collectionKeys[i]];
+      const collection = root.collections[collectionKeys[i]];
       this._private.collections[collectionKeys[i]] = new Collection(
         collectionKeys[i],
         this._private.global,
         collection
       );
     }
-    this._private.collections["request"] = new Request(
-      this._private.global,
-      request
-    );
+    if (this._private.global.config.enableRequest !== false)
+      this._private.collections["request"] = new Request(
+        this._private.global,
+        request
+      );
+    if (this._private.global.config.enableBase !== false)
+      this._private.collections["base"] = new Base(this._private.global, root);
   }
 
   initRuntime() {
@@ -201,7 +205,9 @@ export default class Library {
     dependentCollection,
     dependentGroup
   ) {
-    this._private.collections[foreignCollection].foreignGroupRelations[foreignData] = {
+    this._private.collections[foreignCollection].foreignGroupRelations[
+      foreignData
+    ] = {
       collection: dependentCollection,
       groupToRegen: dependentGroup
     };
