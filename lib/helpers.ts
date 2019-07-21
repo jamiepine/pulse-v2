@@ -7,6 +7,9 @@ export const protectedNames = [
   "routes"
 ];
 
+export const collectionFunctions = ['collect','replaceIndex','getGroup','newGroup','deleteGroup','removeFromGroup','update','increment','decrement','delete','purge','watch']
+
+
 export function defineConfig(config, defaults) {
   return { ...defaults, ...config };
 }
@@ -18,6 +21,20 @@ export function uuid() {
       .split(".")[1] + Date.now()
   );
 }
+
+export function objectLoop(object, callback) {
+  const objectKeys = Object.keys(object)
+  for (let i = 0; i < objectKeys.length; i++) {
+    const key: string = objectKeys[i]
+    const value: any = object[key]
+    callback(key, value, objectKeys)
+  }
+}
+
+// const thing = {}
+// objectLoop(thing, (key, item, keys) => {
+
+// })
 
 export function log(value, payload) {
   console.log(`Pulse / ${value}`, payload ? payload : " ");

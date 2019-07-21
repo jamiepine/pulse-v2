@@ -1,4 +1,4 @@
-import { log } from "./helpers";
+import { log, objectLoop } from "./helpers";
 import { JobType, Job, Global } from "./interfaces";
 
 export default class Runtime {
@@ -188,10 +188,11 @@ export default class Runtime {
     job.value = this.collections[job.collection].buildGroupFromIndex(
       job.property
     );
+    this.ingestForeignRelatedGroups(job.collection, job.property);
     this.writeToPublicObject(job.collection, "group", job.property, job.value);
     this.completedJob(job);
   }
-  private performFilterOutput(job: Job): void {
+  public performFilterOutput(job: Job): void {
     const filter =
       typeof job.property === "string"
         ? this.collections[job.collection].filters[job.property]
@@ -302,6 +303,20 @@ export default class Runtime {
         // FIND DEP
       });
     });
+  }
+  // when groups are rebuilt, find other groups that are dependent on this group
+  // (defined using "hasMany" in the model) and ingest those groups into the queue.
+  private ingestForeignRelatedGroups(collection: string, groupName: string) {
+    // let relations = this.collections[collection].foreignGroupRelations
+    // objectLoop(relations, (relationKey, relation) => {
+    //   if (relationKey === groupName)
+    //   this.ingest({
+    //     type: JobType.GROUP_UPDATE,
+    //     collection: relation.collection,
+    //     property: relation.groupToRegen,
+    //     dep: this.collections[relation.collection].public.getDep(relation.groupToRegen)
+    //   });
+    // })
   }
 
   private searchIndexes(

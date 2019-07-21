@@ -13,6 +13,7 @@ export default class Reactive {
   private allowPrivateWrite: boolean = false;
   private touching: boolean = false;
   private touched: null | Dep;
+
   constructor(
     object: Obj = {},
     private global: Global,

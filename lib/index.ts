@@ -4,6 +4,11 @@ const pulse = new Library({
   config: {},
   collections: {
     lol: {
+      model: {
+        jeff: {
+          hasMany: 'channels'
+        }
+      },
       filters: {
         fuck({ channels }) {
           return channels.filterOne;
@@ -41,21 +46,13 @@ const pulse = new Library({
           return true;
         }
       },
-      watch: {
-        // deepReactive({ channels }) {
-        //   channels.currentChannel = "THIRD";
-        // }
-      },
+      watch: {},
       filters: {
         filterOne({ channels }) {
           // console.log("Hi, I'm filter One!");
           // console.log(channels.deepReactive)
           return channels.deepReactive.op.cool.luka;
         }
-        // filterTwo({ channels }) {
-        //   // console.log("Hi, I'm filter Two!");
-        //   return channels.filterOne;
-        // }
       }
     }
   }
@@ -71,27 +68,6 @@ pulse.mapData(({ channels, lol }) => {
   };
 });
 
-// const AHAHAA = pulse.mapData({
-//   channel: "channels/currentChannel"
-// });
-
-// console.log('woreif',AHAHAA);
-
-// pulse.channels.deepReactive.op.cool.luka = false;
-
-// setTimeout(() => {
-//   console.log(
-//     pulse._private.collections.channels.filterDeps.filterTwo.subscribers[0]
-//   );
-// });
-
-// pulse.channels.openChannel = false;
-// // pulse.channels.currentChannel = 'FUCK YYEYEYEYEEYYEY';
-// // pulse.channels.pls.push(1, 3);
-// pulse.channels.test();
-
-// pulse.channels.deepReactive.op.cool.luka = "YES!!";
-
 const sampleData = [];
 for (let i = 0; i < 10; i++) {
   sampleData.push({
@@ -101,17 +77,9 @@ for (let i = 0; i < 10; i++) {
   });
 }
 
-// pulse.channels.collect(sampleData, ["fuuuuuu", "haha"]);
+pulse.channels.collect(sampleData, 'myChannels')
+pulse.lol.collect(sampleData, 'ij')
 
-// console.log(sampleData);
 
-console.log(pulse);
 
-console.log("HERE");
-
-// pulse.channels.routes.getSomething().then(res => {
-//   console.log(res);
-// });
-
-// pulse._private.collections.channels.data.privateWrite("openChannel", false);
-// pulse._private.collections.channels.data.dispatch();
+setTimeout(() => console.log(pulse))

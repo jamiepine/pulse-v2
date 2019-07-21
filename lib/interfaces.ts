@@ -29,6 +29,8 @@ export interface Watcher {
 export interface RootConfig {
   framework?: any;
   frameworkConstructor?: any;
+  waitForMount?: boolean;
+  autoUnmount?: boolean;
 }
 export interface CollectionConfig {}
 
@@ -72,13 +74,13 @@ export interface Keys {
   data?: Array<string>;
   filters?: Array<string>;
   actions?: Array<string>;
-  groups?: Array<string>;
+  indexes?: Array<string>;
 }
 
 export interface Global {
   subs: SubController;
   runtime?: Runtime;
-  config: object;
+  config: RootConfig;
   initComplete: boolean;
   collecting: boolean;
   runningAction: boolean | Action;
@@ -87,6 +89,7 @@ export interface Global {
   contextRef: ExpandableObject;
   storage: any;
   // aliases
+  createForeignGroupRelation: any;
   dispatch: any;
   getContext: any;
   uuid: any;

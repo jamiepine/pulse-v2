@@ -30,6 +30,7 @@ export default class Library {
         storage: null,
         dispatch: this.dispatch.bind(this),
         getContext: this.getContext.bind(this),
+        createForeignGroupRelation: this.createForeignGroupRelation.bind(this),
         contextRef: {},
         uuid
       }
@@ -45,7 +46,6 @@ export default class Library {
   }
 
   runAllFilters() {
-    console.log("Running all filters...");
     const collectionKeys = Object.keys(this._private.collections);
     for (let i = 0; i < collectionKeys.length; i++) {
       const collection = this._private.collections[collectionKeys[i]];
@@ -129,23 +129,26 @@ export default class Library {
 
   install(Vue) {
     const pulse = this;
-    const config = pulse._private.global.config.waitForMount;
+    const config = pulse._private.global.config;
     Vue.mixin({
       beforeCreate() {
         Object.keys(pulse.global.dataRef).forEach(collection => {
           this["$" + collection] = pulse.global.dataRef[collection];
         });
 
-        this.$utils = pulse.utils;
-        this.$services = pulse.services;
-        this.$staticData = pulse.staticData;
+        if (pulse.utils) this.$utils = pulse.utils;
+        if (pulse.services) this.$services = pulse.services;
+        if (pulse.staticData) this.$staticData = pulse.staticData;
 
         this.mapData = properties =>
-          pulse
-            .mapData(properties, this, {
+          pulse.mapData(
+            properties,
+            this,
+            {
               waitForMount: config.waitForMount
-            })
-            .bind(pulse);
+            },
+            pulse
+          );
       },
       mounted() {
         if (this.__pulseUniqueIdentifier && config.waitForMount)
@@ -158,18 +161,19 @@ export default class Library {
     });
   }
 
-  mapData(properties, instance = {}, _config = {}) {
+  mapData(properties, instance = {}, _config = {}, pulseAlias?: any) {
+    let pulse = pulseAlias ? pulseAlias : this;
     const config = {
       waitForMount: true,
       ..._config
     };
-    const componentUUID = this._private.global.subs.registerComponent(
+    const componentUUID = pulse._private.global.subs.registerComponent(
       instance,
       config
     );
     // new cool mapData method
     if (typeof properties === "function") {
-      return this._private.global.subs.subscribePropertiesToComponents(
+      return pulse._private.global.subs.subscribePropertiesToComponents(
         properties,
         componentUUID
       );
@@ -179,8 +183,8 @@ export default class Library {
       normalizeMap(properties).forEach(({ key, val }) => {
         let collection = val.split("/")[0];
         let property = val.split("/")[1];
-        let c = this._private.global.getContext()[collection];
-        returnData = this._private.global.subs.subscribePropertiesToComponents(
+        let c = pulse._private.global.getContext()[collection];
+        returnData = pulse._private.global.subs.subscribePropertiesToComponents(
           () => {
             return { [key]: c[property] };
           },
@@ -189,6 +193,18 @@ export default class Library {
       });
       return returnData;
     }
+  }
+
+  createForeignGroupRelation(
+    foreignCollection,
+    foreignData,
+    dependentCollection,
+    dependentGroup
+  ) {
+    this._private.collections[foreignCollection].foreignGroupRelations[foreignData] = {
+      collection: dependentCollection,
+      groupToRegen: dependentGroup
+    };
   }
 
   emit(name: string, payload: any): void {

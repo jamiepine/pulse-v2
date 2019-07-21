@@ -1,4 +1,9 @@
-import { assert, defineConfig, validateNumber, log } from "./helpers";
+import {
+  assert,
+  defineConfig,
+  validateNumber,
+  collectionFunctions
+} from "./helpers";
 import Reactive from "./reactive";
 import Action from "./action";
 import Filter from "./filter";
@@ -13,26 +18,30 @@ import {
 } from "./interfaces";
 
 export default class Collection {
-  public: Reactive;
-  indexes: Reactive;
-  namespace: CollectionObject;
-  config: CollectionConfig = {};
-  keys: Keys = {};
-  methods: Methods;
+  private namespace: CollectionObject;
+  public public: Reactive;
+  public indexes: Reactive;
+  public config: CollectionConfig = {};
+  public keys: Keys = {};
+  public methods: Methods = {};
 
-  actions: { [key: string]: Action } = {};
-  filters: { [key: string]: Filter } = {};
-  watchers: { [key: string]: any } = {};
-  externalWatchers: { [key: string]: any } = {};
-  persist: Array<string> = [];
+  public actions: { [key: string]: Action } = {};
+  public filters: { [key: string]: Filter } = {};
+  public watchers: { [key: string]: any } = {};
+  public externalWatchers: { [key: string]: any } = {};
+  public persist: Array<string> = [];
 
-  internalData: object = {};
-  relatedToInternalData: object = {};
-  collectionSize: number = 0;
+  public collectionSize: number = 0;
+  public primaryKey: string | number | boolean = false;
 
-  primaryKey: string | number | boolean = false;
+  private internalData: object = {};
+
+  private dataRelations: { [key: string]: any } = {};
+  private groupRelations: { [key: string]: any } = {};
+  public foreignGroupRelations: { [key: string]: any } = {};
 
   dispatch: void;
+
   constructor(
     public name: string,
     protected global: Global,
@@ -41,20 +50,9 @@ export default class Collection {
     this.config = root.config;
     this.dispatch = this.global.dispatch;
 
-    this.methods = {
-      collect: this.collect.bind(this),
-      replaceIndex: this.replaceIndex.bind(this),
-      getGroup: this.getGroup.bind(this),
-      newGroup: this.newGroup.bind(this),
-      deleteGroup: this.deleteGroup.bind(this),
-      removeFromGroup: this.removeFromGroup.bind(this),
-      update: this.update.bind(this),
-      increment: this.increment.bind(this),
-      decrement: this.decrement.bind(this),
-      delete: this.delete.bind(this),
-      purge: this.purge.bind(this),
-      watch: this.watch.bind(this)
-    };
+    collectionFunctions.map(
+      func => (this.methods[func] = this[func].bind(this))
+    );
 
     this.prepareNamespace(root);
 
@@ -64,29 +62,40 @@ export default class Collection {
     this.initWatchers(this.namespace.watch);
     this.initFilters(this.namespace.filters);
 
+    this.initModel(root.model);
     this.initPersist(root.persist);
   }
 
   prepareNamespace(root: CollectionObject) {
+    // prepare defaults
     const types = {
       data: root.data || {},
-      groups: root.groups ? this.normalizeGroups(root.groups) : {},
       filters: root.filters || {},
       actions: root.actions || {}
     };
-    // name
+    // cache the keys for all namespace object types
     Object.keys(types).forEach(type => {
       this.keys[type] = Object.keys(types[type]);
     });
+    this.keys["indexes"] = root.groups || [];
 
+    // assign namespace
     this.namespace = Object.assign(
-      {},
-      this.methods,
+      Object.create({ ...this.methods }), // bind methods to prototype
       { routes: {}, indexes: {} },
       types
     );
+
+    let groups = root.groups ? this.normalizeGroups(root.groups) : {};
+
+    let mutableKeys = [...this.keys.data, ...this.keys.indexes];
+    for (let i = 0; i < mutableKeys.length; i++) {
+      const key = mutableKeys[i];
+      this.namespace[key] = types.data[key] || groups[key];
+    }
   }
 
+  // groups are defined by the user as an array of strings, this converts them into object/keys
   normalizeGroups(groupsAsArray: any) {
     const groups: object = {};
     for (let i = 0; i < groupsAsArray.length; i++) {
@@ -97,30 +106,22 @@ export default class Collection {
   }
 
   initReactive(data: object = {}, groups: object = {}) {
-    let dataKeys = Object.keys(data);
-    let groupKeys = Object.keys(groups);
-
-    for (let i = 0; i < dataKeys.length; i++) {
-      const key = dataKeys[i];
-      this.namespace[key] = data[key];
-    }
-
     // Make indexes reactive
     this.indexes = new Reactive(
       groups, // object
       this.global, // global
       this.name, // collection
-      groupKeys, // mutable
+      this.keys.indexes, // mutable
       "indexes" // type
     );
     this.namespace.indexes = this.indexes.object;
 
     // Make entire public object Reactive
     this.public = new Reactive(
-      Object.assign({}, this.namespace),
+      this.namespace,
       this.global,
       this.name,
-      [...dataKeys, ...groupKeys],
+      [...this.keys.data, ...this.keys.indexes],
       "root"
     );
   }
@@ -212,6 +213,56 @@ export default class Collection {
     }
   }
 
+  initModel(model = {}) {
+    Object.keys(model).forEach(property => {
+      Object.keys(model[property]).forEach(config => {
+        if (config === "primaryKey") {
+          this.primaryKey = property;
+        } else if (config === "type") {
+          // if (
+          //   [
+          //     'string',
+          //     'boolean',
+          //     'integer',
+          //     'number',
+          //     'array',
+          //     'object'
+          //   ].includes(model[property].type)
+          // ) {
+          //   // model types are properties of the model to type check & validate on collect
+          //   if (!this._modelTypes.includes(property)) {
+          //     this._modelTypes.push(property);
+          //   }
+          // }
+        } else if (config === "parent" || config === "hasOne") {
+          this.createDataRelation(
+            property,
+            model[property].parent || model[property].hasOne,
+            model[property].assignTo
+          );
+        } else if (config === "has" || config === "hasMany") {
+          this.createGroupRelation(
+            property,
+            model[property].has || model[property].hasMany,
+            model[property].assignTo
+          );
+        }
+      });
+    });
+  }
+
+  createDataRelation(primaryKeyName, fromCollectionName, assignTo) {
+    this.dataRelations[primaryKeyName] = {};
+    this.dataRelations[primaryKeyName].fromCollectionName = fromCollectionName;
+    if (assignTo) this.dataRelations[primaryKeyName].assignTo = assignTo;
+  }
+
+  createGroupRelation(primaryKeyName, fromCollectionName, assignTo) {
+    this.groupRelations[primaryKeyName] = {};
+    this.groupRelations[primaryKeyName].fromCollectionName = fromCollectionName;
+    if (assignTo) this.groupRelations[primaryKeyName].assignTo = assignTo;
+  }
+
   buildGroupFromIndex(groupName: string): Array<number> {
     // console.log(collection, key)
     const constructedArray = [];
@@ -220,11 +271,65 @@ export default class Collection {
       let id = index[i];
       let data = this.internalData[id];
       if (!data) continue;
+      // data = this.injectDataByRelation(data);
+      // data = this.injectGroupByRelation(data, groupName);
       constructedArray.push(data);
-      // data = this.injectDataByRelation(data)
-      // data = this.injectGroupByRelation(data)
     }
     return constructedArray;
+  }
+
+  injectDataByRelation(data) {
+    let relations = Object.keys(this.dataRelations);
+    if (relations.length > 0)
+      for (let i = 0; i < relations.length; i++) {
+        const relationKey = relations[i];
+        const rel = this.dataRelations[relationKey];
+        const assignTo = rel.hasOwnProperty("assignTo") ? rel.assignTo : false;
+
+        if (data.hasOwnProperty(relationKey)) {
+          let foreignData = this.global.contextRef[rel.fromCollectionName][
+            data[relationKey]
+          ];
+
+          if (foreignData) {
+            if (assignTo) data[assignTo] = foreignData;
+            else data[rel.fromCollectionName] = foreignData;
+          }
+        }
+      }
+    return data;
+  }
+
+  // if
+  injectGroupByRelation(data, groupName) {
+    console.log("FGGGG");
+    let groupRealtions = Object.keys(this.groupRelations);
+    if (groupRealtions.length > 0)
+      for (let i = 0; i < groupRealtions.length; i++) {
+        const relationKey = groupRealtions[i];
+        const rel = this.groupRelations[relationKey];
+
+        const assignTo = rel.hasOwnProperty("assignTo") ? rel.assignTo : false;
+
+        if (data.hasOwnProperty(relationKey)) {
+          const foreignData = this.global.contextRef[rel.fromCollectionName][
+            data[relationKey]
+          ];
+
+          if (foreignData) {
+            if (assignTo) data[assignTo] = foreignData;
+            else data[rel.fromCollectionName] = foreignData;
+          }
+
+          // register this relation on the foreign collection for reactive updates
+          this.global.createForeignGroupRelation(
+            rel.fromCollectionName,
+            data[relationKey],
+            this.name,
+            groupName
+          );
+        }
+      }
   }
 
   createGroups(group) {
